@@ -5,8 +5,7 @@
 # Last edit: 2024-02-09
 
 library(readxl); library(panSEA); library(synapser)
-library(stringr); library(tidyr)
-library(dplyr)
+library(stringr); library(tidyr); library(dplyr)
 
 setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
 source("panSEA_helper.R")
@@ -47,86 +46,18 @@ moa.BeatAML <- utils::read.csv(
   stringsAsFactors = FALSE, fileEncoding = "latin1")
 
 # login to Synapse
-#synLogin()
+synapser::synLogin()
 
 # load data from Synapse
 BeatAML.data <- load_BeatAML_for_DMEA("BeatAML_DMEA_inputs")
 
 #### 3. Run panSEA across sort.types for each omics, sens.type, drug.type ####
 ## set up comparisons
-#sort.types <- c("CD14+", "CD34+", "MSC")
-sort.types <- unique(na.omit(meta.df$SampleType))
-#sens.types <- c("sensitive", "resistant")
+#sort.types <- unique(na.omit(meta.df$SampleType))
 sens.types <- unique(na.omit(meta.df$Drug))
 drug.types <- c("Aza", "Ven", "Aza.Ven")
 
-# sort.type contrasts
-sort.contrasts <- list()
-counter <- 0
-for (i in 1:length(sort.types)) {
-  for (j in 1:length(sort.types)) {
-    if (i != j) {
-      counter <- counter + 1
-      alpha.pair <- sort(c(sort.types[i], sort.types[j]))
-      sort.contrasts[[counter]] <- alpha.pair
-    }
-  }
-}
-sort.contrasts <- unique(sort.contrasts)
-
-# re-do sort.type contrasts without '+' at end of names
-sort.types2 <- sort.types
-for (i in 1:length(sort.types2)) {
-  if (substr(sort.types2[i], nchar(sort.types2[i]), nchar(sort.types2[i])) == "+") {
-    sort.types2[i] <- paste(substr(sort.types2[i], 1, nchar(sort.types2[i])-1), "Pos")
-  }
-}
-
-meta.df$SampleType2 <- meta.df$SampleType
-for (i in 1:nrow(meta.df)) {
-  temp.type <- meta.df$SampleType[i]
-  if (substr(temp.type, nchar(temp.type), nchar(temp.type)) == "+") {
-    meta.df$SampleType2[i] <- paste(substr(temp.type, 1, nchar(temp.type)-1), "Pos")
-  }
-}
-
-# re-do sort.type contrasts without spaces in names
-sort.types3 <- sort.types
-for (i in 1:length(sort.types3)) {
-  if (grepl(" ", sort.types3[i])) {
-    sort.types3[i] <- sub(" ", "_", sort.types3[i])
-  }
-}
-
-meta.df$SampleType3 <- meta.df$SampleType
-for (i in 1:nrow(meta.df)) {
-  temp.type <- meta.df$SampleType[i]
-  if (grepl(" ", temp.type)) {
-    meta.df$SampleType3[i] <- sub(" ", "_", temp.type)
-  }
-}
-
-sort.contrasts3 <- list()
-counter <- 0
-for (i in 1:length(sort.types3)) {
-  for (j in 1:length(sort.types3)) {
-    if (i != j) {
-      counter <- counter + 1
-      alpha.pair <- sort(c(sort.types3[i], sort.types3[j]))
-      sort.contrasts3[[counter]] <- alpha.pair
-    }
-  }
-}
-sort.contrasts3 <- unique(sort.contrasts3)
-
-# re-do sort.type contrasts without spaces or + in names
-sort.types4 <- sort.types2
-for (i in 1:length(sort.types4)) {
-  if (grepl(" ", sort.types4[i])) {
-    sort.types4[i] <- sub(" ", "_", sort.types4[i])
-  }
-}
-
+# sort.type contrasts without spaces or + in names
 meta.df$SampleType4 <- meta.df$SampleType
 meta.df[meta.df$SampleType == "CD14+",]$SampleType4 <- "CD14_Pos"
 meta.df[meta.df$SampleType == "CD34+",]$SampleType4 <- "CD34_Pos"
