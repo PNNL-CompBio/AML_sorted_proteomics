@@ -596,8 +596,8 @@ run_contrasts_global_phospho <- function(contrasts, contrast.type,
       
       global.files <- list('Differential_expression' = global.DEG.files, 
                            'DMEA' = global.DMEA.files,
-                           'GSEA_KEGG' = global.GSEA.hallmark.files,
-                           'GSEA_hallmark' = global.GSEA.KEGG.files)
+                           'GSEA_hallmark' = global.GSEA.hallmark.files,
+                           'GSEA_KEGG' = global.GSEA.KEGG.files)
       phospho.files <- list('Differential_expression' = phospho.DEG.files, 
                             'DMEA' = phospho.DMEA.files,
                             'KSEA' = phospho.KSEA.files,
