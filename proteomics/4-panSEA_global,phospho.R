@@ -53,7 +53,7 @@ BeatAML.data <- load_BeatAML_for_DMEA("BeatAML_DMEA_inputs")
 
 #### 3. Run panSEA across sort.types for each omics, sens.type, drug.type ####
 ## set up comparisons
-#sort.types <- unique(na.omit(meta.df$SampleType))
+sort.types <- unique(na.omit(meta.df$SampleType))
 sens.types <- unique(na.omit(meta.df$Drug))
 drug.types <- c("Aza", "Ven", "Aza.Ven")
 
@@ -234,3 +234,124 @@ for (j in drug.types) {
   } 
 }
 
+#### 4. Compile differential expression (DEGs) ####
+all.degs <- data.frame()
+# get degs from sens vs. res contrasts without cell type filter
+for (j in drug.types) {
+  contrast.type <- paste0(j, "_Sensitive_vs_Resistant")
+  setwd(file.path(base.path, contrast.type)) 
+  
+  # load degs
+  global.degs <- read.csv("global/Differential_expression/Differential_expression_results.csv")
+  phospho.degs <- read.csv("phospho/Differential_expression/Differential_expression_results.csv")
+  
+  # add feature_type
+  global.degs$Feature_type <- colnames(global.degs)[1]
+  phospho.degs$Feature_type <- colnames(phospho.degs)[1]
+  colnames(global.degs)[1] <- "Feature"
+  colnames(phospho.degs)[1] <- "Feature"
+  
+  # rbind and add contrast information
+  temp.degs <- na.omit(rbind(global.degs, phospho.degs))
+  temp.degs$Cell_type_filter <- NA
+  temp.degs$Drug_sensitivity_filter <- NA
+  temp.degs$Contrast <- contrast.type
+  all.degs <- rbind(all.degs, temp.degs)
+}
+
+# get degs from sens vs. res contrasts for each cell type
+for (i in sort.types) {
+  for (j in drug.types) {
+    contrast.type <- paste0(j, "_Sensitive_vs_Resistant")
+    setwd(base.path)
+    setwd(i) # change to sort.type path separately because of potential space
+    dir.create(contrast.type) # in case it wasn't created before
+    setwd(contrast.type)
+    
+    if (file.exists("global/Differential_expression/Differential_expression_results.csv")) {
+      # load degs
+      global.degs <- read.csv("global/Differential_expression/Differential_expression_results.csv")
+      phospho.degs <- read.csv("phospho/Differential_expression/Differential_expression_results.csv")
+      
+      # add feature_type
+      global.degs$Feature_type <- colnames(global.degs)[1]
+      phospho.degs$Feature_type <- colnames(phospho.degs)[1]
+      colnames(global.degs)[1] <- "Feature"
+      colnames(phospho.degs)[1] <- "Feature"
+      
+      # rbind and add contrast information
+      temp.degs <- na.omit(rbind(global.degs, phospho.degs))
+      temp.degs$Cell_type_filter <- i
+      temp.degs$Drug_sensitivity_filter <- NA
+      temp.degs$Contrast <- contrast.type
+      all.degs <- rbind(all.degs, temp.degs)
+    }
+  }
+}
+
+# get degs from cell type contrasts without drug sensitivity filter
+for (i in 1:length(sort.contrasts4)) {
+    contrast.type <- paste0(sort.contrasts4[[i]][1], "_vs_", sort.contrasts4[[i]][2])
+    contrast.type.path <- paste0("SampleType4_", contrast.type)
+    setwd(file.path(base.path, contrast.type.path))
+    
+    if (file.exists("global/Differential_expression/Differential_expression_results.csv")) {
+      # load degs
+      global.degs <- read.csv("global/Differential_expression/Differential_expression_results.csv")
+      phospho.degs <- read.csv("phospho/Differential_expression/Differential_expression_results.csv")
+      
+      # add feature_type
+      global.degs$Feature_type <- colnames(global.degs)[1]
+      phospho.degs$Feature_type <- colnames(phospho.degs)[1]
+      colnames(global.degs)[1] <- "Feature"
+      colnames(phospho.degs)[1] <- "Feature"
+      
+      # rbind and add contrast information
+      temp.degs <- na.omit(rbind(global.degs, phospho.degs))
+      temp.degs$Cell_type_filter <- NA
+      temp.degs$Drug_sensitivity_filter <- NA
+      temp.degs$Contrast <- contrast.type
+      all.degs <- rbind(all.degs, temp.degs)
+    }
+}
+
+# get degs from cell type contrasts for each drug sensitivity
+for (j in drug.types) {
+  for (k in sens.types) {
+    drug.sens.type <- paste0(j, "_", k)
+    for (i in 1:length(sort.contrasts4)) {
+      contrast.type <- paste0(sort.contrasts4[[i]][1], "_vs_", sort.contrasts4[[i]][2])
+      contrast.type.path <- paste0("SampleType4_", contrast.type)
+      setwd(base.path)
+      dir.create(drug.sens.type)
+      setwd(drug.sens.type)
+      dir.create(contrast.type.path)
+      setwd(contrast.type.path)
+      
+      if (file.exists("global/Differential_expression/Differential_expression_results.csv")) {
+        # load degs
+        global.degs <- read.csv("global/Differential_expression/Differential_expression_results.csv")
+        phospho.degs <- read.csv("phospho/Differential_expression/Differential_expression_results.csv")
+        
+        # add feature_type
+        global.degs$Feature_type <- colnames(global.degs)[1]
+        phospho.degs$Feature_type <- colnames(phospho.degs)[1]
+        colnames(global.degs)[1] <- "Feature"
+        colnames(phospho.degs)[1] <- "Feature"
+        
+        # rbind and add contrast information
+        temp.degs <- na.omit(rbind(global.degs, phospho.degs))
+        temp.degs$Cell_type_filter <- NA
+        temp.degs$Drug_sensitivity_filter <- drug.sens.type
+        temp.degs$Contrast <- contrast.type
+        all.degs <- rbind(all.degs, temp.degs)
+      }
+    }
+  }
+}
+
+# save locally
+setwd(base.path)
+write.csv(all.degs, "Exp24_TMT_differential_expression.csv", row.names = FALSE) # 379,420 features
+write.csv(all.degs[all.degs$adj.P.Val <= 0.05, ], "Exp24_TMT_differential_expression_max_5_percent_FDR.csv", row.names = FALSE) # 584 features
+filtered.degs <- all.degs[all.degs$adj.P.Val <= 0.05, ]
