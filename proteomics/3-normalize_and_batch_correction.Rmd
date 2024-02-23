@@ -41,20 +41,20 @@ phospho_prot_mat <- phospho_crosstab_prot[, intersect(as.character(1:ncol(phosph
 
 ```
 
-Divide by number of cells
+Divide by number of cells - not doing this anymore as of 2024-02-22
 ```{r}
-sample.info <- na.omit(meta)
-for (i in 1:nrow(sample.info)) {
-  # get number of cells & MeasurementName
-  n.cells <- as.numeric(sample.info$CellNumber[i])
-  measurementName <- sample.info$MeasurementName[i]
-  
-  # divide corresponding columns by number of cells
-  global_crosstab[, measurementName] <- global_crosstab[, measurementName]/n.cells
-  phospho_crosstab[, measurementName] <- phospho_crosstab[, measurementName]/n.cells
-  phospho_crosstab_prot[, measurementName] <- phospho_crosstab_prot[, measurementName]/n.cells
-  phospho_prot_mat[, measurementName] <- phospho_prot_mat[, measurementName]/n.cells
-}
+# sample.info <- na.omit(meta)
+# for (i in 1:nrow(sample.info)) {
+#   # get number of cells & MeasurementName
+#   n.cells <- as.numeric(sample.info$CellNumber[i])
+#   measurementName <- sample.info$MeasurementName[i]
+#   
+#   # divide corresponding columns by number of cells
+#   global_crosstab[, measurementName] <- global_crosstab[, measurementName]/n.cells
+#   phospho_crosstab[, measurementName] <- phospho_crosstab[, measurementName]/n.cells
+#   phospho_crosstab_prot[, measurementName] <- phospho_crosstab_prot[, measurementName]/n.cells
+#   phospho_prot_mat[, measurementName] <- phospho_prot_mat[, measurementName]/n.cells
+# }
 ```
 
 
@@ -255,6 +255,7 @@ crosstab_kstar <- crosstab %>%
   select(SiteID, Peptide_kstar, Protein_kstar)
 
 # no "baseline" aka control for Exp24 samples
+sample.info <- na.omit(meta)
 all_groups <- na.omit(unique(sample.info$MeasurementName))
 for (MeasurementName in all_groups){
   mat <- as.data.frame(crosstab[, as.character(MeasurementName)])
