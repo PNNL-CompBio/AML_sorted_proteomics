@@ -8,7 +8,7 @@ if (!require("amlresistancenetworks", quietly = TRUE))
   remotes::install_github("https://github.com/PNNL-CompBio/amlresistancenetworks")
 library(amlresistancenetworks); library(reticulate); library(synapser)
 
-synLogin()
+#synLogin()
 
 ```
 
