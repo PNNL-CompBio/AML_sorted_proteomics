@@ -46,7 +46,7 @@ moa.BeatAML <- utils::read.csv(
   stringsAsFactors = FALSE, fileEncoding = "latin1")
 
 # login to Synapse
-synapser::synLogin()
+#synapser::synLogin()
 
 # load data from Synapse
 BeatAML.data <- load_BeatAML_for_DMEA("BeatAML_DMEA_inputs")
@@ -58,13 +58,13 @@ sens.types <- unique(na.omit(meta.df$Drug))
 drug.types <- c("Aza", "Ven", "Aza.Ven")
 
 # sort.type contrasts without spaces or + in names
-meta.df$SampleType4 <- meta.df$SampleType
-meta.df[meta.df$SampleType == "CD14+",]$SampleType4 <- "CD14_Pos"
-meta.df[meta.df$SampleType == "CD34+",]$SampleType4 <- "CD34_Pos"
-meta.df[meta.df$SampleType == "CD14+ Flow",]$SampleType4 <- "CD14_Pos_Flow"
-meta.df[meta.df$SampleType == "CD34+ Flow",]$SampleType4 <- "CD34_Pos_Flow"
-meta.df[meta.df$SampleType == "MSC Flow",]$SampleType4 <- "MSC_Flow"
-sort.types4 <- na.omit(unique(meta.df$SampleType4))
+meta.df$CellType <- meta.df$SampleType
+meta.df[meta.df$SampleType == "CD14+",]$CellType <- "CD14_Pos"
+meta.df[meta.df$SampleType == "CD34+",]$CellType <- "CD34_Pos"
+meta.df[meta.df$SampleType == "CD14+ Flow",]$CellType <- "CD14_Pos_Flow"
+meta.df[meta.df$SampleType == "CD34+ Flow",]$CellType <- "CD34_Pos_Flow"
+meta.df[meta.df$SampleType == "MSC Flow",]$CellType <- "MSC_Flow"
+sort.types4 <- na.omit(unique(meta.df$CellType))
 sort.contrasts4 <- list()
 counter <- 0
 for (i in 1:length(sort.types4)) {
@@ -99,11 +99,12 @@ msigdb.info <- as.data.frame(msigdb.info[, c(
   "gs_description"
 )])
 
-gmt.H <- DMEA::as_gmt(
-  msigdb.info, "gene_symbol", "gs_name", min.per.set = 6,
-  descriptions = "gs_description"
-) 
-saveRDS(gmt.H, "gmt_MSigDB_Homo-sapiens_H.rds")
+# gmt.H <- DMEA::as_gmt(
+#   msigdb.info, "gene_symbol", "gs_name", min.per.set = 6,
+#   descriptions = "gs_description"
+# ) 
+# saveRDS(gmt.H, "gmt_MSigDB_Homo-sapiens_H.rds")
+gmt.H <- readRDS("gmt_MSigDB_Homo-sapiens_H.rds")
 
 gmt.ksdb <- readRDS("gmt_ksdb_human_PNNL.rds")
 
@@ -117,9 +118,12 @@ gmt.ksdb <- readRDS("gmt_ksdb_human_PNNL.rds")
 # saveRDS(gmt.sub, "gmt_PNNL_kinase-substrate_PTRC2_exp24.rds")
 gmt.sub <- readRDS("gmt_PNNL_kinase-substrate_PTRC2_exp24.rds")
 
-gmt.drug <- DMEA::as_gmt(moa.BeatAML, min.per.set = 6)
-saveRDS(gmt.drug, "gmt_BeatAML_drug_MOA.rds")
-
+# gmt.drug <- DMEA::as_gmt(moa.BeatAML, min.per.set = 6)
+# saveRDS(gmt.drug, "gmt_BeatAML_drug_MOA.rds")
+#gmt.drug <- readRDS("gmt_BeatAML_drug_MOA.rds")
+#gmt.drug <- DMEA::as_gmt(moa.BeatAML, sep = ", ")
+#saveRDS(gmt.drug, "gmt_BeatAML_drug_MOA_2024-02-22.rds")
+gmt.drug <- readRDS("gmt_BeatAML_drug_MOA_2024-02-22.rds")
 omics <- list("global" = global.df,
               "phospho" = phospho.df)
 beatAML <- list("global" = BeatAML.data$global,
@@ -138,7 +142,7 @@ base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/
 # add 'X' to MeasurementName to match colnames of data
 meta.df$id <- paste0('X', meta.df$MeasurementName)
 
-synapse_id <- "syn53606822"
+synapse_id <- "syn53653091"
 
 # run sens vs. res contrasts without cell type filter
 for (j in drug.types) {
@@ -175,28 +179,24 @@ for (i in sort.types) {
   } 
 }
 
-# need to change names w "+" at the end because it gives this error during limma:
-# Error in parse(text = e[j]) : <text>:2:0: unexpected end of input
-# 1: CD14+-CD34+
-#   ^
 # run cell type contrasts without drug sensitivity filter
 setwd(base.path)
-sort.contrasts5 <- sort.contrasts4[3:length(sort.contrasts4)]
-# skip CD14+ vs CD14+ Flow for now bc need to add checking of ksdb gmt coverage
-# also skip CD14_Pos_Flow vs CD34_Pos for same reason
-# also skip CD14+ Flow vs MSC Flow for same reason
-# also skip CD14+ Flow vs CD34+ Flow for same reason
-sort.contrasts6 <- list(c("CD14_Pos", "CD14_Pos_Flow"), 
-                        c("CD14_Pos_Flow", "CD34_Pos"),
-                        c("CD14_Pos_Flow", "MSC_Flow"),
-                        c("CD14_Pos_Flow", "CD34_Pos_Flow"))
-run_contrasts_global_phospho(sort.contrasts6, "SampleType4",'id', meta.df,
+contrasts.w.KSEA <- sort.contrasts4[c(1:2, 4:5, 7, 9)]
+contrasts.wo.KSEA <- sort.contrasts4[c(3, 6, 8, 10)]
+run_contrasts_global_phospho(contrasts.w.KSEA, "CellType",'id', meta.df,
+                             omics, beatAML, gmt.features, gmt.features2, 
+                             gmt.features3a, gmt.features3b, 
+                             gmt.drug, BeatAML.data$drug, base.path,
+                             synapse_id)
+
+run_contrasts_global_phospho(contrasts.wo.KSEA, "CellType",'id', meta.df,
                              omics, beatAML, gmt.features, gmt.features2, 
                              gmt.features3a, gmt.features3b, 
                              gmt.drug, BeatAML.data$drug, base.path,
                              synapse_id, KSEA = FALSE)
+
 for (j in drug.types) {
-  j = "Ven"
+  #j = "Ven"
   #j = "Aza.Ven"
   for (i in sens.types) {
     #i = "Resistant"
@@ -214,11 +214,41 @@ for (j in drug.types) {
                                           parent = synapse_id))
     
     # run cell type contrasts for each drug sensitivity
-    run_contrasts_global_phospho(sort.contrasts4[1:length(sort.contrasts4)], "SampleType4", 'id', 
-                                 meta.filtered, omics, beatAML, gmt.features, 
-                                 gmt.features2, gmt.features3a, gmt.features3b, 
-                                 gmt.drug, BeatAML.data$drug, temp.base.path,
-                                 synapse_id = dataFolder)
+    if (i == "Resistant") {
+      contrasts.w.KSEA <- sort.contrasts4[c(1:2, 4:5, 7, 9)]
+      if (j == "Aza") {
+        contrasts.wo.KSEA <- sort.contrasts4[c(3, 6, 8, 10)]
+      } else {
+        contrasts.wo.KSEA <- sort.contrasts4[c(3, 6, 8)] 
+      }
+      run_contrasts_global_phospho(contrasts.w.KSEA, "CellType", 'id',
+                                   meta.filtered, omics, beatAML, gmt.features,
+                                   gmt.features2, gmt.features3a, gmt.features3b,
+                                   gmt.drug, BeatAML.data$drug, temp.base.path,
+                                   synapse_id = dataFolder)
+      run_contrasts_global_phospho(contrasts.wo.KSEA, "CellType", 'id',
+                                   meta.filtered, omics, beatAML, gmt.features,
+                                   gmt.features2, gmt.features3a, gmt.features3b,
+                                   gmt.drug, BeatAML.data$drug, temp.base.path,
+                                   synapse_id = dataFolder, KSEA = FALSE)
+    } else {
+      if (i == "Sensitive" & j == "Aza") {
+        # not enough samples for Aza_Sensitive items 2, 3, 4 of sort.contrasts4:
+        # Error in .ebayes(fit = fit, proportion = proportion, stdev.coef.lim = stdev.coef.lim,  : 
+        #                    No residual degrees of freedom in linear model fits
+        run_contrasts_global_phospho(sort.contrasts4[c(1,7)], "CellType", 'id', 
+                                     meta.filtered, omics, beatAML, gmt.features, 
+                                     gmt.features2, gmt.features3a, gmt.features3b, 
+                                     gmt.drug, BeatAML.data$drug, temp.base.path,
+                                     synapse_id = dataFolder) 
+      } else {
+        run_contrasts_global_phospho(sort.contrasts4[1:length(sort.contrasts4)], "CellType", 'id', 
+                                     meta.filtered, omics, beatAML, gmt.features, 
+                                     gmt.features2, gmt.features3a, gmt.features3b, 
+                                     gmt.drug, BeatAML.data$drug, temp.base.path,
+                                     synapse_id = dataFolder)  
+      }
+    }
     
     # no KSEA for Aza_Resistant sort.contrasts4 items 3, 6, 8, 10
     # no KSEA for Aza.Ven_Resistant sort.contrasts4 items 3, 6, 8
@@ -226,7 +256,7 @@ for (j in drug.types) {
     # not enough samples for Aza.Ven_Resistant sort.contrasts4 item 10 or Ven_Resistant sort.contrasts4 item 10:
     # Error in .ebayes(fit = fit, proportion = proportion, stdev.coef.lim = stdev.coef.lim,  : 
     #                    No residual degrees of freedom in linear model fits
-    # run_contrasts_global_phospho(sort.contrasts4[8], "SampleType4", 'id',
+    # run_contrasts_global_phospho(sort.contrasts4[8], "CellType", 'id',
     #                              meta.filtered, omics, beatAML, gmt.features,
     #                              gmt.features2, gmt.features3a, gmt.features3b,
     #                              gmt.drug, BeatAML.data$drug, temp.base.path,
@@ -265,10 +295,12 @@ for (i in sort.types) {
     contrast.type <- paste0(j, "_Sensitive_vs_Resistant")
     setwd(base.path)
     setwd(i) # change to sort.type path separately because of potential space
-    dir.create(contrast.type) # in case it wasn't created before
-    setwd(contrast.type)
+    #dir.create(contrast.type) # in case it wasn't created before
+    #setwd(contrast.type)
     
-    if (file.exists("global/Differential_expression/Differential_expression_results.csv")) {
+    if (file.exists(file.path(contrast.type, "global/Differential_expression/Differential_expression_results.csv"))) {
+      setwd(contrast.type)
+      
       # load degs
       global.degs <- read.csv("global/Differential_expression/Differential_expression_results.csv")
       phospho.degs <- read.csv("phospho/Differential_expression/Differential_expression_results.csv")
@@ -292,7 +324,7 @@ for (i in sort.types) {
 # get degs from cell type contrasts without drug sensitivity filter
 for (i in 1:length(sort.contrasts4)) {
     contrast.type <- paste0(sort.contrasts4[[i]][1], "_vs_", sort.contrasts4[[i]][2])
-    contrast.type.path <- paste0("SampleType4_", contrast.type)
+    contrast.type.path <- paste0("CellType_", contrast.type)
     setwd(file.path(base.path, contrast.type.path))
     
     if (file.exists("global/Differential_expression/Differential_expression_results.csv")) {
@@ -321,14 +353,16 @@ for (j in drug.types) {
     drug.sens.type <- paste0(j, "_", k)
     for (i in 1:length(sort.contrasts4)) {
       contrast.type <- paste0(sort.contrasts4[[i]][1], "_vs_", sort.contrasts4[[i]][2])
-      contrast.type.path <- paste0("SampleType4_", contrast.type)
+      contrast.type.path <- paste0("CellType_", contrast.type)
       setwd(base.path)
-      dir.create(drug.sens.type)
+      #dir.create(drug.sens.type)
       setwd(drug.sens.type)
-      dir.create(contrast.type.path)
-      setwd(contrast.type.path)
+      #dir.create(contrast.type.path)
+      #setwd(contrast.type.path)
       
-      if (file.exists("global/Differential_expression/Differential_expression_results.csv")) {
+      if (file.exists(file.path(contrast.type.path, "global/Differential_expression/Differential_expression_results.csv"))) {
+        setwd(contrast.type.path)
+        
         # load degs
         global.degs <- read.csv("global/Differential_expression/Differential_expression_results.csv")
         phospho.degs <- read.csv("phospho/Differential_expression/Differential_expression_results.csv")
@@ -355,3 +389,11 @@ setwd(base.path)
 write.csv(all.degs, "Exp24_TMT_differential_expression.csv", row.names = FALSE) # 379,420 features
 write.csv(all.degs[all.degs$adj.P.Val <= 0.05, ], "Exp24_TMT_differential_expression_max_5_percent_FDR.csv", row.names = FALSE) # 584 features
 filtered.degs <- all.degs[all.degs$adj.P.Val <= 0.05, ]
+
+CSV.files <- list.files(pattern = ".*.csv", full.names = TRUE)
+if (length(CSV.files) > 0) {
+  # save to synapse
+  CSVs <- lapply(as.list(CSV.files), synapser::File,
+                 parent = synapse_id)
+  lapply(CSVs, synapser::synStore)
+}
