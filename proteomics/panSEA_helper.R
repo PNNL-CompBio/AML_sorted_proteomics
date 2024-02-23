@@ -38,7 +38,7 @@ get_top_mtn_plots <- function(base.result, n.top = 10, EA.type = "GSEA",
   return(all.top.mtn)
 }
 
-save_to_synapse <- function(temp.files, resultsFolder) {
+save_to_synapse <- function(temp.files, resultsFolder = NULL) {
   CSV.files <- names(temp.files)[grepl(".csv", names(temp.files))]
   if (length(CSV.files) > 0) {
     # save locally
@@ -47,9 +47,11 @@ save_to_synapse <- function(temp.files, resultsFolder) {
     }
     
     # save to synapse
+    if (!is.null(resultsFolder)) {
     CSVs <- lapply(as.list(CSV.files), synapser::File,
                    parent = resultsFolder)
     lapply(CSVs, synapser::synStore)
+    }
   }
   
   PDF.files <- names(temp.files)[grepl(".pdf", names(temp.files))]
@@ -63,10 +65,12 @@ save_to_synapse <- function(temp.files, resultsFolder) {
     }
     
     # save to synapse
+    if (!is.null(resultsFolder)) {
     PDF.files <- list.files(pattern = ".*.pdf", full.names = TRUE)
     PDFs <- lapply(as.list(PDF.files), synapser::File,
                    parent = resultsFolder)
     lapply(PDFs, synapser::synStore)
+    }
   }
   
   HTML.files <- names(temp.files)[grepl(".html", names(temp.files))]
@@ -77,9 +81,11 @@ save_to_synapse <- function(temp.files, resultsFolder) {
     }
     
     # save to synapse
+    if (!is.null(resultsFolder)) {
     HTMLs <- lapply(HTML.files, synapser::File,
                     parent = resultsFolder)
     lapply(HTMLs, synapser::synStore) 
+    }
   }
 }
 
