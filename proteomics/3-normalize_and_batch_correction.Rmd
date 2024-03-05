@@ -31,6 +31,15 @@ rownames(meta) <- meta$MeasurementName
 # remove EMPTY rows
 meta <- meta[meta$Tube != "EMPTY", ]
 
+# add other drug info & make sure sensitivity is correctly labeled
+sens.info <- read.csv("data/Exp24_drug_sensitivity_20240209.csv")
+meta <- merge(meta, sens.info)
+meta$X <- NULL
+rownames(meta) <- meta$MeasurementName
+meta$Pooled <- meta$SampleType
+meta[meta$SampleType == "CD14+ Flow",]$Pooled <- "CD14+"
+meta[meta$SampleType == "CD34+ Flow",]$Pooled <- "CD34+"
+
 colnames(global_crosstab) <- sub("^X", "", colnames(global_crosstab))
 colnames(phospho_crosstab) <- sub("^X", "", colnames(phospho_crosstab))
 colnames(phospho_crosstab_prot) <- sub("^data.", "", colnames(phospho_crosstab_prot))
@@ -136,7 +145,7 @@ Both datasets show strong batch effect
 
 
 ```{r}
-phenos <- c("Plex", "tubeNumber", "patient", "SampleType", "Drug")
+phenos <- c("Plex", "tubeNumber", "patient", "SampleType", "Pooled", "Aza", "Ven", "Aza.Ven")
 for (i in 1:length(phenos)) {
   plot_pca(m_global, phenotype = phenos[i]) + ggtitle("Global PCA")
   ggsave(paste0("exp24_global_PCA_by_", phenos[i], ".pdf"))
@@ -169,7 +178,7 @@ if (length(unique(meta$Plex)) > 1) {
 
 
 ```{r}
-phenos <- c("Plex", "tubeNumber", "patient", "SampleType", "Drug")
+phenos <- c("Plex", "tubeNumber", "patient", "SampleType", "Pooled", "Aza", "Ven", "Aza.Ven")
 for (i in 1:length(phenos)) {
   plot_pca(m_global_corrected, phenotype = phenos[i]) + ggtitle("Global PCA")
   ggsave(paste0("exp24_global_corrected_PCA_by_", phenos[i], ".pdf"))
