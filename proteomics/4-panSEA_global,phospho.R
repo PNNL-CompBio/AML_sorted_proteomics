@@ -10,9 +10,6 @@ library(stringr); library(tidyr); library(dplyr)
 setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
 source("panSEA_helper.R")
 
-# to do:
-# revise run_contrasts to make sure everything is saved correctly (incl mtn plots)
-
 # overview
 #### 1. Import metadata & crosstabs ####
 #### 2. Import BeatAML data formatted for DMEA ####
@@ -264,6 +261,91 @@ for (j in drug.types) {
   } 
 }
 
+# pool flow and non-flow samples
+meta.df$Pooled <- meta.df$SampleType
+meta.df[grepl("CD14+", meta.df$SampleType),]$Pooled <- "CD14_Pos"
+meta.df[grepl("CD34+", meta.df$SampleType),]$Pooled <- "CD34_Pos"
+meta.df[meta.df$SampleType == "MSC Flow",]$Pooled <- "MSC_Flow"
+sort.types.pooled <- na.omit(unique(meta.df$Pooled))
+sort.pooled <- list()
+counter <- 0
+for (i in 1:length(sort.types.pooled)) {
+  for (j in 1:length(sort.types.pooled)) {
+    if (i != j) {
+      counter <- counter + 1
+      alpha.pair <- sort(c(sort.types.pooled[i], sort.types.pooled[j]))
+      sort.pooled[[counter]] <- alpha.pair
+    }
+  }
+}
+sort.pooled <- unique(sort.pooled)
+
+# filter for pooled cell types
+for (i in sort.types.pooled) {
+  # filter meta.df
+  meta.filtered <- meta.df[meta.df$Pooled == i, ]
+  
+  # create folder for each cell type
+  setwd(base.path)
+  folder.name <- paste0("Pooled_", i)
+  dir.create(folder.name)
+  setwd(folder.name)
+  temp.base.path <- file.path(base.path, folder.name)
+  dataFolder <- 
+    synapser::synStore(synapser::Folder(folder.name,
+                                        parent = synapse_id))
+  
+  # run sens vs. res contrasts for each cell type
+  for (j in drug.types) {
+    if (nrow(meta.filtered[meta.filtered[ , j] == "Sensitive", ]) > 0 &
+        nrow(meta.filtered[meta.filtered[ , j] == "Resistant", ]) > 0) {
+      run_contrasts_global_phospho(list(c("Sensitive", "Resistant")), j, 'id', 
+                                   meta.filtered, omics, beatAML, gmt.features, 
+                                   gmt.features2, gmt.features3a, gmt.features3b, 
+                                   gmt.drug, BeatAML.data$drug, temp.base.path,
+                                   synapse_id = dataFolder) 
+    }
+  } 
+}
+
+# run pooled cell type contrasts without drug sensitivity filter
+setwd(base.path)
+contrasts.w.KSEA <- sort.pooled[1:length(sort.pooled)]
+run_contrasts_global_phospho(contrasts.w.KSEA, "Pooled",'id', meta.df,
+                             omics, beatAML, gmt.features, gmt.features2, 
+                             gmt.features3a, gmt.features3b, 
+                             gmt.drug, BeatAML.data$drug, base.path,
+                             synapse_id)
+
+
+for (j in drug.types) {
+  #j = "Ven"
+  #j = "Aza.Ven"
+  for (i in sens.types) {
+    #i = "Resistant"
+    # filter meta.df
+    meta.filtered <- meta.df[meta.df[ , j] == i, ]
+    
+    # create folder for each drug sensitivity type
+    drug.sens.type <- paste0(j, "_", i)
+    setwd(base.path)
+    dir.create(drug.sens.type)
+    setwd(drug.sens.type)
+    temp.base.path <- file.path(base.path, drug.sens.type)
+    dataFolder <- 
+      synapser::synStore(synapser::Folder(drug.sens.type,
+                                          parent = synapse_id))
+    
+    # run cell type contrasts for each drug sensitivity
+    run_contrasts_global_phospho(sort.pooled, "Pooled", 'id',
+                                 meta.filtered, omics, beatAML, gmt.features,
+                                 gmt.features2, gmt.features3a, gmt.features3b,
+                                 gmt.drug, BeatAML.data$drug, temp.base.path,
+                                 synapse_id = dataFolder)
+
+  }
+} 
+
 #### 4. Compile differential expression (DEGs) ####
 all.degs <- data.frame()
 # get degs from sens vs. res contrasts without cell type filter
@@ -396,4 +478,150 @@ if (length(CSV.files) > 0) {
   CSVs <- lapply(as.list(CSV.files), synapser::File,
                  parent = synapse_id)
   lapply(CSVs, synapser::synStore)
+}
+
+# add on pooled analyses
+setwd(base.path)
+all.degs <- read.csv("Exp24_TMT_differential_expression.csv")
+
+# get degs filtered for pooled cell types
+for (i in sort.types.pooled) {
+  for (j in drug.types) {
+    contrast.type <- paste0(j, "_Sensitive_vs_Resistant")
+    setwd(base.path)
+    folder.name <- paste0("Pooled_", i)
+    setwd(folder.name) # change to sort.type path separately because of potential space
+    #dir.create(contrast.type) # in case it wasn't created before
+    #setwd(contrast.type)
+    
+    if (file.exists(file.path(contrast.type, "global/Differential_expression/Differential_expression_results.csv"))) {
+      setwd(contrast.type)
+      
+      # load degs
+      global.degs <- read.csv("global/Differential_expression/Differential_expression_results.csv")
+      phospho.degs <- read.csv("phospho/Differential_expression/Differential_expression_results.csv")
+      
+      # add feature_type
+      global.degs$Feature_type <- colnames(global.degs)[1]
+      phospho.degs$Feature_type <- colnames(phospho.degs)[1]
+      colnames(global.degs)[1] <- "Feature"
+      colnames(phospho.degs)[1] <- "Feature"
+      
+      # rbind and add contrast information
+      temp.degs <- na.omit(rbind(global.degs, phospho.degs))
+      temp.degs$Cell_type_filter <- folder.name
+      temp.degs$Drug_sensitivity_filter <- NA
+      temp.degs$Contrast <- contrast.type
+      all.degs <- rbind(all.degs, temp.degs)
+    }
+  }
+}
+
+# get degs from pooled cell type contrasts without drug sensitivity filter
+for (i in 1:length(sort.pooled)) {
+  contrast.type <- paste0("Pooled_", sort.pooled[[i]][1], "_vs_", sort.pooled[[i]][2])
+  setwd(file.path(base.path, contrast.type))
+  
+  if (file.exists("global/Differential_expression/Differential_expression_results.csv")) {
+    # load degs
+    global.degs <- read.csv("global/Differential_expression/Differential_expression_results.csv")
+    phospho.degs <- read.csv("phospho/Differential_expression/Differential_expression_results.csv")
+    
+    # add feature_type
+    global.degs$Feature_type <- colnames(global.degs)[1]
+    phospho.degs$Feature_type <- colnames(phospho.degs)[1]
+    colnames(global.degs)[1] <- "Feature"
+    colnames(phospho.degs)[1] <- "Feature"
+    
+    # rbind and add contrast information
+    temp.degs <- na.omit(rbind(global.degs, phospho.degs))
+    temp.degs$Cell_type_filter <- NA
+    temp.degs$Drug_sensitivity_filter <- NA
+    temp.degs$Contrast <- contrast.type
+    all.degs <- rbind(all.degs, temp.degs)
+  }
+}
+
+# get degs from pooled cell type contrasts for each drug sensitivity
+for (j in drug.types) {
+  for (k in sens.types) {
+    drug.sens.type <- paste0(j, "_", k)
+    for (i in 1:length(sort.pooled)) {
+      contrast.type <- paste0("Pooled_", sort.pooled[[i]][1], "_vs_", sort.pooled[[i]][2])
+      setwd(base.path)
+      setwd(drug.sens.type)
+      
+      if (file.exists(file.path(contrast.type, "global/Differential_expression/Differential_expression_results.csv"))) {
+        setwd(contrast.type)
+        
+        # load degs
+        global.degs <- read.csv("global/Differential_expression/Differential_expression_results.csv")
+        phospho.degs <- read.csv("phospho/Differential_expression/Differential_expression_results.csv")
+        
+        # add feature_type
+        global.degs$Feature_type <- colnames(global.degs)[1]
+        phospho.degs$Feature_type <- colnames(phospho.degs)[1]
+        colnames(global.degs)[1] <- "Feature"
+        colnames(phospho.degs)[1] <- "Feature"
+        
+        # rbind and add contrast information
+        temp.degs <- na.omit(rbind(global.degs, phospho.degs))
+        temp.degs$Cell_type_filter <- NA
+        temp.degs$Drug_sensitivity_filter <- drug.sens.type
+        temp.degs$Contrast <- contrast.type
+        all.degs <- rbind(all.degs, temp.degs)
+      }
+    }
+  }
+}
+
+# save locally
+setwd(base.path)
+write.csv(all.degs, "Exp24_TMT_differential_expression.csv", row.names = FALSE) # now 539449 rows; was 379,420 before pooled analyses
+write.csv(all.degs[all.degs$adj.P.Val <= 0.05, ], "Exp24_TMT_differential_expression_max_5_percent_FDR.csv", row.names = FALSE) # now 2128 rows; was 584 before pooled analyses
+filtered.degs <- all.degs[all.degs$adj.P.Val <= 0.05, ]
+
+CSV.files <- c("Exp24_TMT_differential_expression.csv", "Exp24_TMT_differential_expression_max_5_percent_FDR.csv")
+if (length(CSV.files) > 0) {
+  # save to synapse
+  CSVs <- lapply(as.list(CSV.files), synapser::File,
+                 parent = synapse_id)
+  lapply(CSVs, synapser::synStore)
+}
+
+# create heatmaps for top 30-50 differentially expressed features
+base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis"
+my.contrast <- "Pooled_CD14_Pos_vs_CD34_Pos"
+n.features <- c(10, 20, 30, 50)
+omics <- c("global", "phospho")
+max.abs.Log2FC <- 0 # 2.94455 so use 3
+max.minusLogFDR <- 0 # 4.343 so use 4.5
+for (i in omics) {
+  setwd(file.path(base.path, my.contrast, i, "Differential_expression"))
+  # load differential expression results & filter for q <= 0.05
+  degs <- read.csv("Differential_expression_results.csv")
+  degs <- degs[degs$adj.P.Val <= 0.05, ]
+  for (j in n.features) {
+    # identify top features
+    top.degs <- degs %>% dplyr::slice_max(abs(Log2FC), n = j)
+    top.degs$minusLogFDR <- -log(top.degs$adj.P.Val, 10)
+    
+    # save top differential expression results
+    write.csv(top.degs, paste0("top_", j, "_diffexp_features_maxFDR0.05.csv"), row.names = FALSE)
+    if (i == "global") {
+      write.csv(top.degs[,c("Gene", "Log2FC")], paste0("top_", j, "_diffexp_features_Log2FC_maxFDR0.05.csv"), row.names = FALSE)
+      write.csv(top.degs[,c("Gene", "minusLogFDR")], paste0("top_", j, "_diffexp_features_minusLogFDR_maxFDR0.05.csv"), row.names = FALSE)
+    } else {
+      write.csv(top.degs[,c("SUB_SITE", "Log2FC")], paste0("top_", j, "_diffexp_features_Log2FC_maxFDR0.05.csv"), row.names = FALSE)
+      write.csv(top.degs[,c("SUB_SITE", "minusLogFDR")], paste0("top_", j, "_diffexp_features_minusLogFDR_maxFDR0.05.csv"), row.names = FALSE)
+    }
+    
+    # keep track of max abs(Log2FC) and minusLogFDR
+    temp.max.abs.Log2FC <- max(abs(top.degs$Log2FC))
+    temp.max.minusLogFDR <- max(top.degs$minusLogFDR, na.rm = TRUE)
+    max.abs.Log2FC <- ifelse(temp.max.abs.Log2FC > max.abs.Log2FC, 
+                             temp.max.abs.Log2FC, max.abs.Log2FC)
+    max.minusLogFDR <- ifelse(temp.max.minusLogFDR > max.minusLogFDR, 
+                             temp.max.minusLogFDR, max.minusLogFDR)
+  } 
 }
