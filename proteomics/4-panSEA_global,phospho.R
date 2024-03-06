@@ -625,3 +625,116 @@ for (i in omics) {
                              temp.max.minusLogFDR, max.minusLogFDR)
   } 
 }
+
+# repeat but looking at individual sample expression of top diffexp proteins/phospho-sites
+base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis"
+my.contrast <- "Pooled_CD14_Pos_vs_CD34_Pos"
+n.features <- c(10, 20, 30, 50)
+omics <- c("global", "phospho")
+max.expr <- 0 
+global.df <- global.df[,c("Gene", colnames(global.df)[1:(ncol(global.df)-1)])]
+phospho.df <- phospho.df[,c("SUB_SITE", colnames(phospho.df)[1:(ncol(phospho.df)-1)])]
+expr <- list("global" = global.df, "phospho" = phospho.df)
+for (i in omics) {
+  setwd(file.path(base.path, my.contrast, i, "Differential_expression"))
+  temp.expr <- expr[[i]]
+  if (i == "global") {
+    feature.name <- "Gene"
+  } else {
+    feature.name <- "SUB_SITE"
+  }
+
+  for (j in n.features) {
+    # identify top features
+    top.degs <- read.csv(paste0("top_", j, "_diffexp_features_maxFDR0.05.csv"))
+    
+    # get expression data for top features
+    top.expr <- temp.expr[rownames(temp.expr) %in% top.degs[ , feature.name], ]
+    
+    # save expression data for top features
+    write.csv(top.expr, 
+              paste0("top_", j, "_", feature.name, "_maxFDR0.05.csv"), 
+              row.names = FALSE)
+    
+    # keep track of max abs(expression)
+    temp.max.expr <- max(abs(top.expr[ , colnames(top.expr) != feature.name]))
+    max.expr <- ifelse(temp.max.expr > max.expr, temp.max.expr, max.expr)
+  } 
+}
+
+## repeat but balance up & down by pulling half from top & half from bottom based on Log2FC
+# create heatmaps for top 30-50 differentially expressed features
+base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis"
+my.contrast <- "Pooled_CD14_Pos_vs_CD34_Pos"
+n.features <- c(10, 20, 30, 50)
+omics <- c("global", "phospho")
+max.abs.Log2FC <- 0 # 2.94455 so use 3
+max.minusLogFDR <- 0 # 4.089 so use 4.5
+for (i in omics) {
+  setwd(file.path(base.path, my.contrast, i, "Differential_expression"))
+  # load differential expression results & filter for q <= 0.05
+  degs <- read.csv("Differential_expression_results.csv")
+  degs <- degs[degs$adj.P.Val <= 0.05, ]
+  
+  if (i == "global") {
+    feature.name <- "Gene"
+  } else {
+    feature.name <- "SUB_SITE"
+  }
+  
+  for (j in n.features) {
+    # identify top features
+    top.degs <- degs %>% dplyr::slice_max(Log2FC, n = j/2)
+    bottom.degs <- degs %>% dplyr::slice_min(Log2FC, n = j/2)
+    top.degs$minusLogFDR <- -log(top.degs$adj.P.Val, 10)
+    bottom.degs$minusLogFDR <- -log(top.degs$adj.P.Val, 10)
+    bal.degs <- rbind(top.degs, bottom.degs)
+    
+    # save top differential expression results
+    write.csv(bal.degs, paste0("top_", j, "_balanced_diffexp_", feature.name, "_maxFDR0.05.csv"), row.names = FALSE)
+    write.csv(bal.degs[,c(feature.name, "Log2FC")], paste0("top_", j, "_balanced_diffexp_", feature.name, "_Log2FC_maxFDR0.05.csv"), row.names = FALSE)
+    write.csv(bal.degs[,c(feature.name, "minusLogFDR")], paste0("top_", j, "_balanced_diffexp_", feature.name, "_minusLogFDR_maxFDR0.05.csv"), row.names = FALSE)
+    
+    # keep track of max abs(Log2FC) and minusLogFDR
+    temp.max.abs.Log2FC <- max(abs(bal.degs$Log2FC))
+    temp.max.minusLogFDR <- max(bal.degs$minusLogFDR, na.rm = TRUE)
+    max.abs.Log2FC <- ifelse(temp.max.abs.Log2FC > max.abs.Log2FC, 
+                             temp.max.abs.Log2FC, max.abs.Log2FC)
+    max.minusLogFDR <- ifelse(temp.max.minusLogFDR > max.minusLogFDR, 
+                              temp.max.minusLogFDR, max.minusLogFDR)
+  } 
+}
+
+# repeat but looking at individual sample expression of top diffexp proteins/phospho-sites
+base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis"
+my.contrast <- "Pooled_CD14_Pos_vs_CD34_Pos"
+n.features <- c(10, 20, 30, 50)
+omics <- c("global", "phospho")
+max.expr <- 0 # 6.755 so using 7
+expr <- list("global" = global.df, "phospho" = phospho.df)
+for (i in omics) {
+  setwd(file.path(base.path, my.contrast, i, "Differential_expression"))
+  temp.expr <- expr[[i]]
+  if (i == "global") {
+    feature.name <- "Gene"
+  } else {
+    feature.name <- "SUB_SITE"
+  }
+  
+  for (j in n.features) {
+    # identify top features
+    top.degs <- read.csv(paste0("top_", j, "_balanced_diffexp_", feature.name, "_maxFDR0.05.csv"))
+    
+    # get expression data for top features
+    top.expr <- temp.expr[rownames(temp.expr) %in% top.degs[ , feature.name], ]
+    
+    # save expression data for top features
+    write.csv(top.expr, 
+              paste0("top_", j, "_balanced_", feature.name, "_maxFDR0.05.csv"), 
+              row.names = FALSE)
+    
+    # keep track of max abs(expression)
+    temp.max.expr <- max(abs(top.expr[ , colnames(top.expr) != feature.name]), na.rm = TRUE)
+    max.expr <- ifelse(temp.max.expr > max.expr, temp.max.expr, max.expr)
+  } 
+}
