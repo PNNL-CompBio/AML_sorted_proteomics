@@ -19,6 +19,8 @@ source("panSEA_helper.R")
 setwd("data")
 meta.df <- readxl::read_excel("Exp24metadataTable_TMT.xlsx") 
 meta.df$MeasurementName <- as.character(rownames(meta.df))
+rownames(meta.df) <- paste0("X", rownames(meta.df))
+meta.df$row.name <- rownames(meta.df)
 
 # add other drug info & make sure sensitivity is correctly labeled
 sens.info <- read.csv("Exp24_drug_sensitivity_20240209.csv")
@@ -731,6 +733,58 @@ for (i in omics) {
     # save expression data for top features
     write.csv(top.expr, 
               paste0("top_", j, "_balanced_", feature.name, "_maxFDR0.05.csv"), 
+              row.names = FALSE)
+    
+    # keep track of max abs(expression)
+    temp.max.expr <- max(abs(top.expr[ , colnames(top.expr) != feature.name]), na.rm = TRUE)
+    max.expr <- ifelse(temp.max.expr > max.expr, temp.max.expr, max.expr)
+  } 
+}
+
+## repeat but only for CD14/CD34 pooled samples - balanced up & down by pulling half from top & half from bottom based on Log2FC
+# repeat but looking at individual sample expression of top diffexp proteins/phospho-sites
+base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis"
+my.contrast <- "Pooled_CD14_Pos_vs_CD34_Pos"
+n.features <- c(10, 20, 30, 50)
+omics <- c("global", "phospho")
+max.expr <- 0 # 5.24 so using 5.25
+
+global.df <- global.df[,c("Gene", colnames(global.df)[1:(ncol(global.df)-1)])]
+phospho.df <- phospho.df[,c("SUB_SITE", colnames(phospho.df)[1:(ncol(phospho.df)-1)])]
+
+# identify pooled CD14/CD34 samples
+CD14.pool <- meta.df[meta.df$Pooled == "CD14_Pos", ]$row.name
+CD34.pool <- meta.df[meta.df$Pooled == "CD34_Pos", ]$row.name
+sample.pool <- sort(c(CD14.pool, CD34.pool))
+
+# get patient ID annotations
+patient.IDs <- meta.df[sample.pool, ]$patient
+
+global.pool.samples <- colnames(global.df)[colnames(global.df) %in% sample.pool]
+phospho.pool.samples <- colnames(phospho.df)[colnames(phospho.df) %in% sample.pool]
+pool.global <- global.df[ , c("Gene", global.pool.samples)]
+pool.phospho <- phospho.df[ , c("SUB_SITE", phospho.pool.samples)]
+
+expr <- list("global" = pool.global, "phospho" = pool.phospho)
+for (i in omics) {
+  setwd(file.path(base.path, my.contrast, i, "Differential_expression"))
+  temp.expr <- expr[[i]]
+  if (i == "global") {
+    feature.name <- "Gene"
+  } else {
+    feature.name <- "SUB_SITE"
+  }
+  
+  for (j in n.features) {
+    # identify top features
+    top.degs <- read.csv(paste0("top_", j, "_balanced_diffexp_", feature.name, "_maxFDR0.05.csv"))
+    
+    # get expression data for top features
+    top.expr <- temp.expr[rownames(temp.expr) %in% top.degs[ , feature.name], ]
+    
+    # save expression data for top features
+    write.csv(top.expr, 
+              paste0("top_", j, "_pooled_balanced_", feature.name, "_maxFDR0.05.csv"), 
               row.names = FALSE)
     
     # keep track of max abs(expression)
