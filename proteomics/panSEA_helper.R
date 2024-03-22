@@ -710,7 +710,7 @@ run_contrasts_global_human <- function(contrasts, contrast.type, id.type, meta.d
                                                expr = as.list(rep("adherent CCLE", 1)),
                                                gmt.drug = "PRISM", drug.sens = "PRISM", 
                                                base.path = "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/",
-                                               temp.path, subfolder = TRUE,
+                                               temp.path = base.path, subfolder = TRUE,
                                                synapse_id = NULL) {
   setwd(base.path)
   types = c("global")
