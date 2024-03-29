@@ -539,7 +539,7 @@ run_contrasts_global_phospho_human <- function(contrasts, contrast.type, id.type
       phospho.DEG.files <- list("Differential_expression_results.csv" = 
                                   deg[[2]])
 
-      kin.mtn2 <- get_top_mtn_plots(gsea2$Log2FC$all.results$phospho_ksdb,
+      kin.mtn2 <- get_top_mtn_plots(gsea2$all.results[[1]],
                                     EA.type = "KSEA")
       if (KSEA) {
         kin.DMEA.mtn <- get_top_mtn_plots(dmea.results$all.results[[2]],
@@ -584,9 +584,9 @@ run_contrasts_global_phospho_human <- function(contrasts, contrast.type, id.type
         prot.kin.DMEA.files <- list()
       }
       phospho.kin.files <- list("KSEA_results.csv" =
-                                  gsea2$Log2FC$all.results$phospho_ksdb$result,
+                                  gsea2$all.results[[1]]$result,
                                 "KSEA_volcano_plot.pdf" =
-                                  gsea2$Log2FC$all.results$phospho_ksdb$volcano.plot,
+                                  gsea2$all.results[[1]]$volcano.plot,
                                 "KSEA_network_graph.html" = 
                                   kin.net2$interactive,
                                 "mtn_plots" = kin.mtn2,
@@ -595,7 +595,7 @@ run_contrasts_global_phospho_human <- function(contrasts, contrast.type, id.type
                                 "DMEA_proteomics" = prot.kin.DMEA.files) 
       
       
-      sub.mtn2 <- get_top_mtn_plots(gsea2$Log2FC$all.results$phospho_sub,
+      sub.mtn2 <- get_top_mtn_plots(gsea2$all.results[[2]],
                                     EA.type = "Substrate_enrichment")
       if (SSEA) {
         sub.DMEA.mtn <- get_top_mtn_plots(dmea.results$all.results[["phospho_sub"]],
@@ -639,9 +639,9 @@ run_contrasts_global_phospho_human <- function(contrasts, contrast.type, id.type
         prot.sub.DMEA.files <- list()
       }
       phospho.sub.files <- list("Substrate_enrichment_results.csv" =
-                                  gsea2$Log2FC$all.results$phospho_sub$result,
+                                  gsea2$all.results[[2]]$result,
                                 "Substrate_enrichment_volcano_plot.pdf" =
-                                  gsea2$Log2FC$all.results$phospho_sub$volcano.plot,
+                                  gsea2$all.results[[2]]$volcano.plot,
                                 "Substrate_enrichment_network_graph.html" = 
                                   sub.net2$interactive,
                                 "mtn_plots" = sub.mtn2,
@@ -760,8 +760,8 @@ run_TF_contrasts_global_phospho_human <- function(contrast.types, id.type, meta.
     c2 <- "FALSE"
     group.names <- c(c1, c2)
     contrast.name <- paste0(contrast.types[k], "_", c1, "_vs_", c2)
-    group.samples <- list(as.vector(na.omit(meta.df[meta.df[,contrast.types[k]] == c1, id.type]))[[id.type]],
-                          as.vector(na.omit(meta.df[meta.df[,contrast.types[k]] == c2, id.type]))[[id.type]])
+    group.samples <- list(as.vector(na.omit(meta.df[meta.df[,contrast.types[k]] == c1, id.type])),
+                          as.vector(na.omit(meta.df[meta.df[,contrast.types[k]] == c2, id.type])))
     
     if (length(group.samples[[1]]) > 0 & length(group.samples[[2]]) > 0 & 
         length(unique(c(group.samples[[1]], group.samples[[2]]))) > 2) {
@@ -955,7 +955,7 @@ run_TF_contrasts_global_phospho_human <- function(contrast.types, id.type, meta.
       phospho.DEG.files <- list("Differential_expression_results.csv" = 
                                   deg[[2]])
       
-      kin.mtn2 <- get_top_mtn_plots(gsea2$Log2FC$all.results$phospho_ksdb,
+      kin.mtn2 <- get_top_mtn_plots(gsea2$all.results[[1]],
                                     EA.type = "KSEA")
       if (KSEA) {
         kin.DMEA.mtn <- get_top_mtn_plots(dmea.results$all.results[[2]],
@@ -1000,9 +1000,9 @@ run_TF_contrasts_global_phospho_human <- function(contrast.types, id.type, meta.
         prot.kin.DMEA.files <- list()
       }
       phospho.kin.files <- list("KSEA_results.csv" =
-                                  gsea2$Log2FC$all.results$phospho_ksdb$result,
+                                  gsea2$all.results[[1]]$result,
                                 "KSEA_volcano_plot.pdf" =
-                                  gsea2$Log2FC$all.results$phospho_ksdb$volcano.plot,
+                                  gsea2$all.results[[1]]$volcano.plot,
                                 "KSEA_network_graph.html" = 
                                   kin.net2$interactive,
                                 "mtn_plots" = kin.mtn2,
@@ -1011,7 +1011,7 @@ run_TF_contrasts_global_phospho_human <- function(contrast.types, id.type, meta.
                                 "DMEA_proteomics" = prot.kin.DMEA.files) 
       
       
-      sub.mtn2 <- get_top_mtn_plots(gsea2$Log2FC$all.results$phospho_sub,
+      sub.mtn2 <- get_top_mtn_plots(gsea2$all.results[[2]],
                                     EA.type = "Substrate_enrichment")
       if (SSEA) {
         sub.DMEA.mtn <- get_top_mtn_plots(dmea.results$all.results[["phospho_sub"]],
@@ -1055,9 +1055,9 @@ run_TF_contrasts_global_phospho_human <- function(contrast.types, id.type, meta.
         prot.sub.DMEA.files <- list()
       }
       phospho.sub.files <- list("Substrate_enrichment_results.csv" =
-                                  gsea2$Log2FC$all.results$phospho_sub$result,
+                                  gsea2$all.results[[2]]$result,
                                 "Substrate_enrichment_volcano_plot.pdf" =
-                                  gsea2$Log2FC$all.results$phospho_sub$volcano.plot,
+                                  gsea2$all.results[[2]]$volcano.plot,
                                 "Substrate_enrichment_network_graph.html" = 
                                   sub.net2$interactive,
                                 "mtn_plots" = sub.mtn2,
@@ -1192,8 +1192,10 @@ run_TF_contrast_combos_global_phospho_human <- function(contrast.types, id.type,
   all.degs <- data.frame()
   for (m in 1:length(contrast.types)) {
     # run contrasts with TRUE filters
+    setwd(base.path)
     dir.create(file.path(paste0(contrast.types[m], "_TRUE")))
     setwd(file.path(paste0(contrast.types[m], "_TRUE")))
+    truePath <- file.path(base.path, paste0(contrast.types[m], "_TRUE"))
     trueFolder <- 
       synapser::synStore(synapser::Folder(file.path(paste0(contrast.types[m], "_TRUE")),
                                           parent = synapse_id))
@@ -1203,7 +1205,7 @@ run_TF_contrast_combos_global_phospho_human <- function(contrast.types, id.type,
                                           gmt.list2 = gmt2,
                                           expr,
                                           gmt.drug, drug.sens, 
-                                          base.path, temp.path, subfolder,
+                                          base.path, temp.path = truePath, subfolder,
                                           synapse_id = trueFolder, compileDEGs, 
                                           filter = "TRUE", filterID = contrast.types[m])
     if (compileDEGs) {
@@ -1217,6 +1219,7 @@ run_TF_contrast_combos_global_phospho_human <- function(contrast.types, id.type,
     setwd(base.path)
     dir.create(file.path(paste0(filterID, "_FALSE")))
     setwd(file.path(paste0(filterID, "_FALSE")))
+    falsePath <- file.path(base.path, paste0(contrast.types[m], "_TRUE"))
     falseFolder <- 
       synapser::synStore(synapser::Folder(file.path(paste0(filterID, "_FALSE")),
                                           parent = synapse_id))
@@ -1226,7 +1229,7 @@ run_TF_contrast_combos_global_phospho_human <- function(contrast.types, id.type,
                                           gmt.list2 = gmt2,
                                           expr,
                                           gmt.drug, drug.sens, 
-                                          base.path, temp.path, subfolder,
+                                          base.path, temp.path = falsePath, subfolder,
                                           synapse_id = falseFolder, compileDEGs, 
                                           filter = "FALSE", filterID = contrast.types[m])
     if (compileDEGs) {
@@ -1235,6 +1238,28 @@ run_TF_contrast_combos_global_phospho_human <- function(contrast.types, id.type,
       falseDEGs <- read.csv(falseDEGfile$path)
       all.degs <- rbind(all.degs, falseDEGs)
     }
+  }
+  
+  # run contrasts with no filters
+  setwd(base.path)
+  dir.create("no_filter")
+  setwd("no_filter")
+  nullPath <- file.path(base.path, "no_filter")
+  nullFolder <- 
+    synapser::synStore(synapser::Folder("no_filter",
+                                        parent = synapse_id))
+  run_TF_contrasts_global_human(contrast.types, id.type, meta.df, 
+                                omics, gmt.list1 = gmt1,
+                                EA.types, gmt.list2 = gmt2,
+                                expr,
+                                gmt.drug, drug.sens, 
+                                base.path, temp.path = nullPath, subfolder,
+                                synapse_id = nullFolder, compileDEGs)
+  if (compileDEGs) {
+    nullFiles <- synapser::synGetChildren(nullFolder, list("file"), sortBy = 'NAME')
+    nullFile <- synapser::synGet(nullFiles[[1]]$id)
+    nullDEGs <- read.csv(nullFile$path)
+    all.degs <- rbind(all.degs, nullDEGs)
   }
   
   if (compileDEGs) {
@@ -1417,177 +1442,184 @@ run_TF_contrasts_global_human <- function(contrast.types, id.type, meta.df,
     meta.df <- meta.df[meta.df[,filterID] == filter,]
   }
   
-  # load set annotations
-  if (gmt.list1[1] == "chr8") {
-    gmt1 <- get_chr8_gmt1()
-  } else {
-    gmt1 <- get_gmt1(gmt.list1)
-  }
-  
-  prot.df.noNA <- get_CCLE_prot()
   all.degs <- data.frame()
-  
-  ## for each contrast: 
-  for (k in 1:length(contrast.types)) {
-    # identify samples for each side of contrast
-    c1 <- "TRUE"
-    c2 <- "FALSE"
-    group.names <- c(c1, c2)
-    contrast.name <- paste0(contrast.types[k], "_", c1, "_vs_", c2)
-    group.samples <- list(as.vector(na.omit(meta.df[meta.df[,contrast.types[k]] == c1, id.type]))[[id.type]],
-                          as.vector(na.omit(meta.df[meta.df[,contrast.types[k]] == c2, id.type]))[[id.type]])
+  if (nrow(meta.df) > 2) {
+    # load set annotations
+    if (gmt.list1[1] == "chr8") {
+      gmt1 <- get_chr8_gmt1()
+    } else {
+      gmt1 <- get_gmt1(gmt.list1)
+    }
     
-    if (length(group.samples[[1]]) > 0 & length(group.samples[[2]]) > 0 & 
-        length(unique(c(group.samples[[1]], group.samples[[2]]))) > 2) {
-      # run panSEA across omics types
-      # CAUTION: this only works because the # of samples for each treatment type 
-      # is equal; otherwise would have to run panSEA for each contrast separately 
-      # and perhaps set the group.samples input parameter for panSEA
+    prot.df.noNA <- get_CCLE_prot()
+    
+    ## for each contrast: 
+    for (k in 1:length(contrast.types)) {
+      # identify samples for each side of contrast
+      c1 <- "TRUE"
+      c2 <- "FALSE"
+      group.names <- c(c1, c2)
+      contrast.name <- paste0(contrast.types[k], "_", c1, "_vs_", c2)
+      group.samples <- list(as.vector(na.omit(meta.df[meta.df[,contrast.types[k]] == c1, id.type])),
+                            as.vector(na.omit(meta.df[meta.df[,contrast.types[k]] == c2, id.type])))
       
-      # run global against KEGG sets, phospho against kinase sets from ksdb
-      # run differential expression analysis
-      deg <- panSEA::mDEG(omics, types, group.names, group.samples, 
-                          feature.names)$all.results
+      if (length(group.samples[[1]]) > 0 & length(group.samples[[2]]) > 0 & 
+          length(unique(c(group.samples[[1]], group.samples[[2]]))) > 2) {
+        # run panSEA across omics types
+        # CAUTION: this only works because the # of samples for each treatment type 
+        # is equal; otherwise would have to run panSEA for each contrast separately 
+        # and perhaps set the group.samples input parameter for panSEA
+        
+        # run global against KEGG sets, phospho against kinase sets from ksdb
+        # run differential expression analysis
+        deg <- panSEA::mDEG(omics, types, group.names, group.samples, 
+                            feature.names)$all.results
         gsea1.inputs <- list("global" = deg[[1]])
         prot.expr <- list(prot.df.noNA)
         features1 <- c("Gene")
         rank.var <- c("Log2FC")
-      
-      # run GSEA for each gmt in gmt1
-      gsea1 <- list()
-      global.gsea.files <- list()
-      for (i in 1:length(gmt1)) {
-        gsea.name <- paste0("GSEA_", EA.types[i])
         
-        # prep set annotations
-        temp.gmt1 <- list()
-        for (j in 1:length(gsea1.inputs)) {
-          temp.gmt1[[j]] <- gmt1[[i]]
+        # run GSEA for each gmt in gmt1
+        gsea1 <- list()
+        global.gsea.files <- list()
+        for (i in 1:length(gmt1)) {
+          gsea.name <- paste0("GSEA_", EA.types[i])
+          
+          # prep set annotations
+          temp.gmt1 <- list()
+          for (j in 1:length(gsea1.inputs)) {
+            temp.gmt1[[j]] <- gmt1[[i]]
+          }
+          
+          # run GSEA
+          gsea1[[gsea.name]] <- panSEA::mGSEA(gsea1.inputs, temp.gmt1, 
+                                              types = names(gsea1.inputs), 
+                                              feature.names = features1,
+                                              rank.var = rank.var)
+          
+          # store results for each input type
+          global.mtn <- get_top_mtn_plots(
+            gsea1[[gsea.name]]$all.results[["global"]], 
+            EA.type = EA.types[i])
+          global.net <- panSEA::netSEA(list(gsea1.inputs[["global"]]),
+                                       list(gsea1[[gsea.name]]$all.results[["global"]]$result),
+                                       n.network.sets = 5)
+          global.gsea.files[[gsea.name]] <- list("GSEA_results.csv" =
+                                                   gsea1[[gsea.name]]$all.results[["global"]]$result,
+                                                 "GSEA_volcano_plot.pdf" =
+                                                   gsea1[[gsea.name]]$all.results[["global"]]$volcano.plot,
+                                                 "GSEA_network_graph.html" = 
+                                                   global.net$interactive,
+                                                 "mtn_plots" = global.mtn)
         }
         
-        # run GSEA
-        gsea1[[gsea.name]] <- panSEA::mGSEA(gsea1.inputs, temp.gmt1, 
-                                            types = names(gsea1.inputs), 
-                                            feature.names = features1,
-                                            rank.var = rank.var)
+        # run DMEA
+        dmea.results <- panSEA::mDMEA(drug.sens, gmt.drug, expr, gsea1.inputs, 
+                                      names(gsea1.inputs), 
+                                      feature.names = features1,
+                                      weight.values = rank.var)
+        dmea.prot.results <- panSEA::mDMEA(drug.sens, gmt.drug, prot.expr, gsea1.inputs, 
+                                           names(gsea1.inputs), 
+                                           feature.names = features1,
+                                           weight.values = rank.var)
         
-        # store results for each input type
-        global.mtn <- get_top_mtn_plots(
-          gsea1[[gsea.name]]$all.results[["global"]], 
-          EA.type = EA.types[i])
-        global.net <- panSEA::netSEA(list(gsea1.inputs[["global"]]),
-                                     list(gsea1[[gsea.name]]$all.results[["global"]]$result),
-                                     n.network.sets = 5)
-        global.gsea.files[[gsea.name]] <- list("GSEA_results.csv" =
-                                                 gsea1[[gsea.name]]$all.results[["global"]]$result,
-                                               "GSEA_volcano_plot.pdf" =
-                                                 gsea1[[gsea.name]]$all.results[["global"]]$volcano.plot,
-                                               "GSEA_network_graph.html" = 
-                                                 global.net$interactive,
-                                               "mtn_plots" = global.mtn)
-      }
-      
-      # run DMEA
-      dmea.results <- panSEA::mDMEA(drug.sens, gmt.drug, expr, gsea1.inputs, 
-                                    names(gsea1.inputs), 
-                                    feature.names = features1,
-                                    weight.values = rank.var)
-      dmea.prot.results <- panSEA::mDMEA(drug.sens, gmt.drug, prot.expr, gsea1.inputs, 
-                                         names(gsea1.inputs), 
-                                         feature.names = features1,
-                                         weight.values = rank.var)
-      
-      #### save results & upload to Synapse
-      ### set file names
-      ## global
-      global.DEG.files <- list("Differential_expression_results.csv" = 
-                                 deg[["global"]])
-      DMEA.global.mtn <- get_top_mtn_plots(dmea.results$all.results[["global"]],
-                                           sets = "Drug_set",
-                                           EA.type = "DMEA")
-      DMEA.global.net <- panSEA::netSEA(list(dmea.results$all.results[["global"]]$corr.result),
-                                        list(dmea.results$all.results[["global"]]$result),
-                                        "Drug", "Pearson.est",
-                                        n.network.sets = 5)
-      global.DMEA.files <- list("DMEA_results.csv" =
-                                  dmea.results$all.results[[1]]$result,
-                                "DMEA_correlation_results.csv" = 
-                                  dmea.results$all.results[[1]]$corr.result,
-                                "DMEA_correlation_scatter_plots.pdf" = 
-                                  dmea.results$all.results[[1]]$corr.scatter.plots,
-                                "DMEA_volcano_plot.pdf" =
-                                  dmea.results$all.results[[1]]$volcano.plot,
-                                "DMEA_network_graph.html" = 
-                                  DMEA.global.net$interactive,
-                                "mtn_plots" = DMEA.global.mtn)
-      prot.DMEA.global.mtn <- get_top_mtn_plots(dmea.prot.results$all.results[[1]],
-                                                sets = "Drug_set",
-                                                EA.type = "DMEA")
-      prot.DMEA.global.net <- panSEA::netSEA(list(dmea.prot.results$all.results[[1]]$corr.result),
-                                             list(dmea.prot.results$all.results[[1]]$result),
-                                             "Drug", "Pearson.est",
-                                             n.network.sets = 5)
-      prot.global.DMEA.files <- list("DMEA_results.csv" =
-                                       dmea.prot.results$all.results[[1]]$result,
-                                     "DMEA_correlation_results.csv" = 
-                                       dmea.prot.results$all.results[[1]]$corr.result,
-                                     "DMEA_correlation_scatter_plots.pdf" = 
-                                       dmea.prot.results$all.results[[1]]$corr.scatter.plots,
-                                     "DMEA_volcano_plot.pdf" =
-                                       dmea.prot.results$all.results[[1]]$volcano.plot,
-                                     "DMEA_network_graph.html" = 
-                                       prot.DMEA.global.net$interactive,
-                                     "mtn_plots" = prot.DMEA.global.mtn)
-      global.files <- list('Differential_expression' = global.DEG.files, 
-                           'DMEA' = global.DMEA.files,
-                           'DMEA_proteomics' = prot.global.DMEA.files,
-                           'GSEA' = global.gsea.files)
-      
-      all.files <- list('global' = global.files)
-      
-      # create folder for contrast
-      setwd(temp.path)
-      if (subfolder) {
-        dir.create(contrast.name)
-        setwd(contrast.name)
-        contrastFolder <- 
-          synapser::synStore(synapser::Folder(contrast.name,
-                                              parent = synapse_id))
-      } else {
-        contrastFolder <- synapse_id
-        contrast.name <- ""
-      }
-      
-      save_to_synapse(all.files, contrastFolder)
-      
-      # compile DEGs if relevant
-      if (compileDEGs) {
-        # get global degs
-        global.degs <- deg[["global"]]
+        #### save results & upload to Synapse
+        ### set file names
+        ## global
+        global.DEG.files <- list("Differential_expression_results.csv" = 
+                                   deg[["global"]])
+        DMEA.global.mtn <- get_top_mtn_plots(dmea.results$all.results[["global"]],
+                                             sets = "Drug_set",
+                                             EA.type = "DMEA")
+        DMEA.global.net <- panSEA::netSEA(list(dmea.results$all.results[["global"]]$corr.result),
+                                          list(dmea.results$all.results[["global"]]$result),
+                                          "Drug", "Pearson.est",
+                                          n.network.sets = 5)
+        global.DMEA.files <- list("DMEA_results.csv" =
+                                    dmea.results$all.results[[1]]$result,
+                                  "DMEA_correlation_results.csv" = 
+                                    dmea.results$all.results[[1]]$corr.result,
+                                  "DMEA_correlation_scatter_plots.pdf" = 
+                                    dmea.results$all.results[[1]]$corr.scatter.plots,
+                                  "DMEA_volcano_plot.pdf" =
+                                    dmea.results$all.results[[1]]$volcano.plot,
+                                  "DMEA_network_graph.html" = 
+                                    DMEA.global.net$interactive,
+                                  "mtn_plots" = DMEA.global.mtn)
+        prot.DMEA.global.mtn <- get_top_mtn_plots(dmea.prot.results$all.results[[1]],
+                                                  sets = "Drug_set",
+                                                  EA.type = "DMEA")
+        prot.DMEA.global.net <- panSEA::netSEA(list(dmea.prot.results$all.results[[1]]$corr.result),
+                                               list(dmea.prot.results$all.results[[1]]$result),
+                                               "Drug", "Pearson.est",
+                                               n.network.sets = 5)
+        prot.global.DMEA.files <- list("DMEA_results.csv" =
+                                         dmea.prot.results$all.results[[1]]$result,
+                                       "DMEA_correlation_results.csv" = 
+                                         dmea.prot.results$all.results[[1]]$corr.result,
+                                       "DMEA_correlation_scatter_plots.pdf" = 
+                                         dmea.prot.results$all.results[[1]]$corr.scatter.plots,
+                                       "DMEA_volcano_plot.pdf" =
+                                         dmea.prot.results$all.results[[1]]$volcano.plot,
+                                       "DMEA_network_graph.html" = 
+                                         prot.DMEA.global.net$interactive,
+                                       "mtn_plots" = prot.DMEA.global.mtn)
+        global.files <- list('Differential_expression' = global.DEG.files, 
+                             'DMEA' = global.DMEA.files,
+                             'DMEA_proteomics' = prot.global.DMEA.files,
+                             'GSEA' = global.gsea.files)
         
-        # add feature_type
-        global.degs$Feature_type <- colnames(global.degs)[1]
-        colnames(global.degs)[1] <- "Feature"
+        all.files <- list('global' = global.files)
         
-        # add contrast information
-        global.degs$Filter <- paste0(filterID, "_", filter)
-        global.degs$Contrast <- contrast.name
-        all.degs <- rbind(all.degs, global.degs)
+        # create folder for contrast
+        setwd(temp.path)
+        if (subfolder) {
+          dir.create(contrast.name)
+          setwd(contrast.name)
+          contrastFolder <- 
+            synapser::synStore(synapser::Folder(contrast.name,
+                                                parent = synapse_id))
+        } else {
+          contrastFolder <- synapse_id
+          contrast.name <- ""
+        }
+        
+        save_to_synapse(all.files, contrastFolder)
+        
+        # compile DEGs if relevant
+        if (compileDEGs) {
+          # get global degs
+          global.degs <- deg[["global"]]
+          
+          # add feature_type
+          global.degs$Feature_type <- colnames(global.degs)[1]
+          colnames(global.degs)[1] <- "Feature"
+          
+          # add contrast information
+          global.degs$Filter <- paste0(filterID, "_", filter)
+          global.degs$Contrast <- contrast.name
+          all.degs <- rbind(all.degs, global.degs)
+        }
+        
+        # make space to process next contrast
+        gsea1 <- NULL
+        dmea.results <- NULL
+        deg <- NULL
+        gsea1.inputs <- NULL
       }
-      
-      # make space to process next contrast
-      gsea1 <- NULL
-      dmea.results <- NULL
-      deg <- NULL
-      gsea1.inputs <- NULL
-    }
+    } 
   }
   
   if (compileDEGs) {
-    all.DEG.files <- list("Differential_expression_results.csv" = 
-                            all.degs,
-                          "Differential_expression_results_max_5_percent_FDR.csv" = 
-                            all.degs[all.degs$adj.P.Val <= 0.05, ])
+    if (nrow(all.degs) > 0) {
+      all.DEG.files <- list("Differential_expression_results.csv" = 
+                              all.degs,
+                            "Differential_expression_results_max_5_percent_FDR.csv" = 
+                              all.degs[all.degs$adj.P.Val <= 0.05, ]) 
+    } else {
+      all.DEG.files <- list("Differential_expression_results.csv" = 
+                              all.degs)
+    }
     save_to_synapse(all.DEG.files, synapse_id)
   }
 }
@@ -1615,8 +1647,10 @@ run_TF_contrast_combos_global_human <- function(contrast.types, id.type, meta.df
   all.degs <- data.frame()
   for (m in 1:length(contrast.types)) {
     # run contrasts with TRUE filters
+    setwd(base.path)
     dir.create(file.path(paste0(contrast.types[m], "_TRUE")))
     setwd(file.path(paste0(contrast.types[m], "_TRUE")))
+    truePath <- file.path(base.path, paste0(contrast.types[m], "_TRUE"))
     trueFolder <- 
       synapser::synStore(synapser::Folder(file.path(paste0(contrast.types[m], "_TRUE")),
                                           parent = synapse_id))
@@ -1625,7 +1659,7 @@ run_TF_contrast_combos_global_human <- function(contrast.types, id.type, meta.df
                                           EA.types,
                                           expr,
                                           gmt.drug, drug.sens, 
-                                          base.path, temp.path, subfolder,
+                                          base.path, temp.path = truePath, subfolder,
                                           synapse_id = trueFolder, compileDEGs, 
                                           filter = "TRUE", filterID = contrast.types[m])
     if (compileDEGs) {
@@ -1639,6 +1673,7 @@ run_TF_contrast_combos_global_human <- function(contrast.types, id.type, meta.df
     setwd(base.path)
     dir.create(file.path(paste0(filterID, "_FALSE")))
     setwd(file.path(paste0(filterID, "_FALSE")))
+    falsePath <- file.path(base.path, paste0(contrast.types[m], "_TRUE"))
     falseFolder <- 
       synapser::synStore(synapser::Folder(file.path(paste0(filterID, "_FALSE")),
                                           parent = synapse_id))
@@ -1647,7 +1682,7 @@ run_TF_contrast_combos_global_human <- function(contrast.types, id.type, meta.df
                                           EA.types,
                                           expr,
                                           gmt.drug, drug.sens, 
-                                          base.path, temp.path, subfolder,
+                                          base.path, temp.path = falsePath, subfolder,
                                           synapse_id = falseFolder, compileDEGs, 
                                           filter = "FALSE", filterID = contrast.types[m])
     if (compileDEGs) {
@@ -1656,6 +1691,28 @@ run_TF_contrast_combos_global_human <- function(contrast.types, id.type, meta.df
       falseDEGs <- read.csv(falseDEGfile$path)
       all.degs <- rbind(all.degs, falseDEGs)
     }
+  }
+  
+  # run contrasts with no filters
+  setwd(base.path)
+  dir.create("no_filter")
+  setwd("no_filter")
+  nullPath <- file.path(base.path, "no_filter")
+  nullFolder <- 
+    synapser::synStore(synapser::Folder("no_filter",
+                                        parent = synapse_id))
+  run_TF_contrasts_global_human(contrast.types, id.type, meta.df, 
+                                omics, gmt.list1 = gmt1,
+                                EA.types,
+                                expr,
+                                gmt.drug, drug.sens, 
+                                base.path, temp.path = nullPath, subfolder,
+                                synapse_id = nullFolder, compileDEGs)
+  if (compileDEGs) {
+    nullFiles <- synapser::synGetChildren(nullFolder, list("file"), sortBy = 'NAME')
+    nullFile <- synapser::synGet(nullFiles[[1]]$id)
+    nullDEGs <- read.csv(nullFile$path)
+    all.degs <- rbind(all.degs, nullDEGs)
   }
   
   if (compileDEGs) {
