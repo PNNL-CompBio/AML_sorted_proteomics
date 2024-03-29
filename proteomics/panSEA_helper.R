@@ -718,6 +718,7 @@ run_TF_contrasts_global_phospho_human <- function(contrast.types, id.type, meta.
   feature.names = c("Gene", "SUB_SITE")
   if (!is.null(filterID)) {
     meta.df <- meta.df[meta.df[,filterID] == filter,]
+    contrast.types <- contrast.types[contrast.types != filterID]
   }
   
   # load set annotations
@@ -1133,7 +1134,7 @@ run_TF_contrasts_global_phospho_human <- function(contrast.types, id.type, meta.
       dmea.results <- NULL
       deg <- NULL
       gsea1.inputs <- NULL
-    }
+    } 
   }
   
   if (compileDEGs) {
@@ -1190,12 +1191,34 @@ run_TF_contrast_combos_global_phospho_human <- function(contrast.types, id.type,
   }
   
   all.degs <- data.frame()
+  # run contrasts with no filters
+  setwd(temp.path)
+  dir.create("no_filter")
+  setwd("no_filter")
+  nullPath <- file.path(temp.path, "no_filter")
+  nullFolder <- 
+    synapser::synStore(synapser::Folder("no_filter",
+                                        parent = synapse_id))
+  run_TF_contrasts_global_human(contrast.types, id.type, meta.df, 
+                                omics, gmt.list1 = gmt1,
+                                EA.types, gmt.list2 = gmt2,
+                                expr,
+                                gmt.drug, drug.sens, 
+                                base.path, temp.path = nullPath, subfolder,
+                                synapse_id = nullFolder, compileDEGs)
+  if (compileDEGs) {
+    nullFiles <- as.list(synapser::synGetChildren(nullFolder, list("file"), sortBy = 'NAME'))
+    nullFile <- synapser::synGet(nullFiles[[1]]$id)
+    nullDEGs <- read.csv(nullFile$path)
+    all.degs <- rbind(all.degs, nullDEGs)
+  }
+  
   for (m in 1:length(contrast.types)) {
     # run contrasts with TRUE filters
-    setwd(base.path)
+    setwd(temp.path)
     dir.create(file.path(paste0(contrast.types[m], "_TRUE")))
     setwd(file.path(paste0(contrast.types[m], "_TRUE")))
-    truePath <- file.path(base.path, paste0(contrast.types[m], "_TRUE"))
+    truePath <- file.path(temp.path, paste0(contrast.types[m], "_TRUE"))
     trueFolder <- 
       synapser::synStore(synapser::Folder(file.path(paste0(contrast.types[m], "_TRUE")),
                                           parent = synapse_id))
@@ -1209,17 +1232,17 @@ run_TF_contrast_combos_global_phospho_human <- function(contrast.types, id.type,
                                           synapse_id = trueFolder, compileDEGs, 
                                           filter = "TRUE", filterID = contrast.types[m])
     if (compileDEGs) {
-      trueDEGfiles <- synapser::synGetChildren(trueFolder, list("file"), sortBy = 'NAME')
+      trueDEGfiles <- as.list(synapser::synGetChildren(trueFolder, list("file"), sortBy = 'NAME'))
       trueDEGfile <- synapser::synGet(trueDEGfiles[[1]]$id)
       trueDEGs <- read.csv(trueDEGfile$path)
       all.degs <- rbind(all.degs, trueDEGs)
     }
     
     # run contrasts with FALSE filters
-    setwd(base.path)
+    setwd(temp.path)
     dir.create(file.path(paste0(filterID, "_FALSE")))
     setwd(file.path(paste0(filterID, "_FALSE")))
-    falsePath <- file.path(base.path, paste0(contrast.types[m], "_TRUE"))
+    falsePath <- file.path(temp.path, paste0(contrast.types[m], "_TRUE"))
     falseFolder <- 
       synapser::synStore(synapser::Folder(file.path(paste0(filterID, "_FALSE")),
                                           parent = synapse_id))
@@ -1233,37 +1256,15 @@ run_TF_contrast_combos_global_phospho_human <- function(contrast.types, id.type,
                                           synapse_id = falseFolder, compileDEGs, 
                                           filter = "FALSE", filterID = contrast.types[m])
     if (compileDEGs) {
-      falseDEGfiles <- synapser::synGetChildren(falseFolder, list("file"), sortBy = 'NAME')
+      falseDEGfiles <- as.list(synapser::synGetChildren(falseFolder, list("file"), sortBy = 'NAME'))
       falseDEGfile <- synapser::synGet(falseDEGfiles[[1]]$id)
       falseDEGs <- read.csv(falseDEGfile$path)
       all.degs <- rbind(all.degs, falseDEGs)
     }
   }
   
-  # run contrasts with no filters
-  setwd(base.path)
-  dir.create("no_filter")
-  setwd("no_filter")
-  nullPath <- file.path(base.path, "no_filter")
-  nullFolder <- 
-    synapser::synStore(synapser::Folder("no_filter",
-                                        parent = synapse_id))
-  run_TF_contrasts_global_human(contrast.types, id.type, meta.df, 
-                                omics, gmt.list1 = gmt1,
-                                EA.types, gmt.list2 = gmt2,
-                                expr,
-                                gmt.drug, drug.sens, 
-                                base.path, temp.path = nullPath, subfolder,
-                                synapse_id = nullFolder, compileDEGs)
   if (compileDEGs) {
-    nullFiles <- synapser::synGetChildren(nullFolder, list("file"), sortBy = 'NAME')
-    nullFile <- synapser::synGet(nullFiles[[1]]$id)
-    nullDEGs <- read.csv(nullFile$path)
-    all.degs <- rbind(all.degs, nullDEGs)
-  }
-  
-  if (compileDEGs) {
-    setwd(base.path)
+    setwd(temp.path)
     all.DEG.files <- list("Differential_expression_results.csv" = 
                             all.degs,
                           "Differential_expression_results_max_5_percent_FDR.csv" = 
@@ -1440,6 +1441,7 @@ run_TF_contrasts_global_human <- function(contrast.types, id.type, meta.df,
   feature.names = c("Gene")
   if (!is.null(filterID)) {
     meta.df <- meta.df[meta.df[,filterID] == filter,]
+    contrast.types <- contrast.types[contrast.types != filterID]
   }
   
   all.degs <- data.frame()
@@ -1606,9 +1608,9 @@ run_TF_contrasts_global_human <- function(contrast.types, id.type, meta.df,
         dmea.results <- NULL
         deg <- NULL
         gsea1.inputs <- NULL
-      }
-    } 
-  }
+      } 
+    }
+  } 
   
   if (compileDEGs) {
     if (nrow(all.degs) > 0) {
@@ -1645,12 +1647,34 @@ run_TF_contrast_combos_global_human <- function(contrast.types, id.type, meta.df
   }
   
   all.degs <- data.frame()
+  # run contrasts with no filters
+  setwd(temp.path)
+  dir.create("no_filter")
+  setwd("no_filter")
+  nullPath <- file.path(temp.path, "no_filter")
+  nullFolder <- 
+    synapser::synStore(synapser::Folder("no_filter",
+                                        parent = synapse_id))
+  run_TF_contrasts_global_human(contrast.types, id.type, meta.df, 
+                                omics, gmt.list1 = gmt1,
+                                EA.types,
+                                expr,
+                                gmt.drug, drug.sens, 
+                                base.path, temp.path = nullPath, subfolder,
+                                synapse_id = nullFolder, compileDEGs)
+  if (compileDEGs) {
+    nullFiles <- as.list(synapser::synGetChildren(nullFolder, list("file"), sortBy = 'NAME'))
+    nullFile <- synapser::synGet(nullFiles[[1]]$id)
+    nullDEGs <- read.csv(nullFile$path)
+    all.degs <- rbind(all.degs, nullDEGs)
+  }
+  
   for (m in 1:length(contrast.types)) {
     # run contrasts with TRUE filters
-    setwd(base.path)
+    setwd(temp.path)
     dir.create(file.path(paste0(contrast.types[m], "_TRUE")))
     setwd(file.path(paste0(contrast.types[m], "_TRUE")))
-    truePath <- file.path(base.path, paste0(contrast.types[m], "_TRUE"))
+    truePath <- file.path(temp.path, paste0(contrast.types[m], "_TRUE"))
     trueFolder <- 
       synapser::synStore(synapser::Folder(file.path(paste0(contrast.types[m], "_TRUE")),
                                           parent = synapse_id))
@@ -1663,17 +1687,17 @@ run_TF_contrast_combos_global_human <- function(contrast.types, id.type, meta.df
                                           synapse_id = trueFolder, compileDEGs, 
                                           filter = "TRUE", filterID = contrast.types[m])
     if (compileDEGs) {
-      trueDEGfiles <- synapser::synGetChildren(trueFolder, list("file"), sortBy = 'NAME')
+      trueDEGfiles <- as.list(synapser::synGetChildren(trueFolder, list("file"), sortBy = 'NAME'))
       trueDEGfile <- synapser::synGet(trueDEGfiles[[1]]$id)
       trueDEGs <- read.csv(trueDEGfile$path)
       all.degs <- rbind(all.degs, trueDEGs)
     }
     
     # run contrasts with FALSE filters
-    setwd(base.path)
+    setwd(temp.path)
     dir.create(file.path(paste0(filterID, "_FALSE")))
     setwd(file.path(paste0(filterID, "_FALSE")))
-    falsePath <- file.path(base.path, paste0(contrast.types[m], "_TRUE"))
+    falsePath <- file.path(temp.path, paste0(contrast.types[m], "_TRUE"))
     falseFolder <- 
       synapser::synStore(synapser::Folder(file.path(paste0(filterID, "_FALSE")),
                                           parent = synapse_id))
@@ -1686,37 +1710,15 @@ run_TF_contrast_combos_global_human <- function(contrast.types, id.type, meta.df
                                           synapse_id = falseFolder, compileDEGs, 
                                           filter = "FALSE", filterID = contrast.types[m])
     if (compileDEGs) {
-      falseDEGfiles <- synapser::synGetChildren(falseFolder, list("file"), sortBy = 'NAME')
+      falseDEGfiles <- as.list(synapser::synGetChildren(falseFolder, list("file"), sortBy = 'NAME'))
       falseDEGfile <- synapser::synGet(falseDEGfiles[[1]]$id)
       falseDEGs <- read.csv(falseDEGfile$path)
       all.degs <- rbind(all.degs, falseDEGs)
     }
   }
   
-  # run contrasts with no filters
-  setwd(base.path)
-  dir.create("no_filter")
-  setwd("no_filter")
-  nullPath <- file.path(base.path, "no_filter")
-  nullFolder <- 
-    synapser::synStore(synapser::Folder("no_filter",
-                                        parent = synapse_id))
-  run_TF_contrasts_global_human(contrast.types, id.type, meta.df, 
-                                omics, gmt.list1 = gmt1,
-                                EA.types,
-                                expr,
-                                gmt.drug, drug.sens, 
-                                base.path, temp.path = nullPath, subfolder,
-                                synapse_id = nullFolder, compileDEGs)
   if (compileDEGs) {
-    nullFiles <- synapser::synGetChildren(nullFolder, list("file"), sortBy = 'NAME')
-    nullFile <- synapser::synGet(nullFiles[[1]]$id)
-    nullDEGs <- read.csv(nullFile$path)
-    all.degs <- rbind(all.degs, nullDEGs)
-  }
-  
-  if (compileDEGs) {
-    setwd(base.path)
+    setwd(temp.path)
     all.DEG.files <- list("Differential_expression_results.csv" = 
                             all.degs,
                           "Differential_expression_results_max_5_percent_FDR.csv" = 
