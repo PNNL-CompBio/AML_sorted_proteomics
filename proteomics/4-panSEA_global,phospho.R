@@ -170,10 +170,6 @@ synapser::synLogin()
 BeatAML.data <- load_BeatAML_for_DMEA("BeatAML_DMEA_inputs")
 
 #### 3. Run panSEA for each contrast & combination ####
-## set up comparisons
-sens.types <- c("Sensitive", "Resistant")
-drug.types <- c("Aza", "Ven", "Aza.Ven")
-
 # prepare set annotations
 if (file.exists("gmt_BeatAML_drug_MOA.rds")) {
   gmt.drug <- readRDS("gmt_BeatAML_drug_MOA.rds")
@@ -190,9 +186,9 @@ dir.create("analysis")
 setwd("analysis")
 base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis"
 
-synapse_id <- "syn53653091"
+synapse_id <- "syn53606820"
 ## run contrasts without filters
-contrasts <- colnames(meta.df)[4:ncol(meta.df)] # not sure if 4 is right?
+contrasts <- colnames(dia.tmt$meta)[10:(ncol(dia.tmt$meta)-1)]
 method.data <- list("DIA" = dia,
                 "TMT" = tmt,
                 "DIA_&_TMT" = dia.tmt)
@@ -209,7 +205,7 @@ for (k in 1:length(method.data)) {
   meta.df <- method.data[[k]]$meta
   
   # run TF contrast combos
-  if (names(method.data)[k] == "TMT") {
+  if (grepl("DIA", names(method.data)[k])) {
     omics <- list("global" = method.data[[k]]$global)
     run_TF_contrast_combos_global_human(contrasts, "id", meta.df, omics,
                                                 base.path = method.path, 
@@ -235,3 +231,47 @@ all.DEG.files <- list("Differential_expression_results.csv" =
                       "Differential_expression_results_max_5_percent_FDR.csv" = 
                         all.degs[all.degs$adj.P.Val <= 0.05, ])
 save_to_synapse(all.DEG.files, synapse_id)
+
+##### 4. Plot cell markers and DEGS #####
+# plot markers
+# MSCs (Mesenchymal Stem Cells): should be high in CD73, CD90, CD105, CD106, CD146, STRO-1 and low in CD14, CD34, CD45, HLA-DR
+# AML monocytes should be high in CD4, CD11c, CD14, and CD64; source: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5907644/#:~:text=Surface%20antigens%20that%20indicate%20leukemic,mostly%20expressed%20on%20mature%20monocytes.
+# Leukemia stem cells (LSCs):  CD34, CD38, CD123, TIM3, CD25, CD32 and CD96; source: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5388677/
+# LSCs are emphasized in recent PTRC paper: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10950354/
+
+markers <- unique(c("CD73", "CD90", "CD105", "CD106", "CD146", "STRO-1", "CD14", 
+                    "CD34", "CD45", "HLA-DR", "CD4", "CD11c", "CD14", "CD64", 
+                    "CD34", "CD38", "CD123", "TIM3", "CD25", "CD32" "CD96"))
+dia.tmt.markers <- dia.tmt$global[dia.tmt$global$Gene %in% markers,
+                                  c("Gene", colnames(dia.tmt$global)[colnames(dia.tmt$global) != "Gene"])]
+write.csv(dia.tmt.markers, "Cell_markers_global_DIA_TMT.csv", row.names = NULL)
+
+# source: https://www.novusbio.com/research-areas/stem-cells/mesenchymal-stem-cell-markers#:~:text=Sets%20of%20cell%20surface%20markers,%2C%20CD79a%20and%20HLA%2DDR.
+# monocytes should be high in CD14; source: https://www.abcam.com/primary-antibodies/immune-cell-markers-poster
+# erythrocytes should be high in CD235a; source: https://www.abcam.com/primary-antibodies/immune-cell-markers-poster
+# progenitors should be high in CD34; source: https://www.abcam.com/primary-antibodies/immune-cell-markers-poster
+# HSCs (hematopoietic stem cells): CD34+, CD38-, CD45RA-, CD49+, CD90/Thy1+; source: https://www.abcam.com/primary-antibodies/immune-cell-markers-poster
+# more reading: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4616896/#:~:text=Hematopoietic%20stem%20cells%20(HSC)%20and,adipocytes%2C%20endothelial%20cells%20and%20myocyte.
+
+sig.degs.no.filter <- all.degs[is.na(all.degs$filter) & 
+                                 all.degs$adj.P.Val <= 0.05, ]
+for (j in 1:length(contrasts)) {
+  sig.degs <- sig.degs.no.filter[sig.degs.no.filter$Contrast == contrasts[j], ]
+  
+  # get top 25 & bottom 25 degs
+  top.sig.degs <- sig.degs %>% slice_max(Log2FC, 25)
+  bot.sig.degs <- sig.degs %>% slice_min(Log2FC, 25)
+  
+  for (i in 1:length(omics)) {
+    if (i == 1) {
+      feature.name <- "Gene"
+    } else {
+      feature.name <- "SUB_SITE"
+    }
+    # get data for top & bottom degs
+    top.bot.df <- omics[[i]][omics[[i]][,feature.name] %in% top.sig.degs[,feature.name],
+                             c(feature.name, colnames(omics[[i]])[colnames(omics[[i]]) != feature.name])] 
+    write.csv(top.bot.df, paste0(names(omics)[i], "_", contrasts[j], "_top_25_bottom_25_diffexp_max5percentFDR.csv"),
+              row.names = NULL)
+  }
+}
