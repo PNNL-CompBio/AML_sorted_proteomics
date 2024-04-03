@@ -1240,11 +1240,11 @@ run_TF_contrast_combos_global_phospho_human <- function(contrast.types, id.type,
     
     # run contrasts with FALSE filters
     setwd(temp.path)
-    dir.create(file.path(paste0(filterID, "_FALSE")))
-    setwd(file.path(paste0(filterID, "_FALSE")))
-    falsePath <- file.path(temp.path, paste0(contrast.types[m], "_TRUE"))
+    dir.create(file.path(paste0(contrast.types[m], "_FALSE")))
+    setwd(file.path(paste0(contrast.types[m], "_FALSE")))
+    falsePath <- file.path(temp.path, paste0(contrast.types[m], "_FALSE"))
     falseFolder <- 
-      synapser::synStore(synapser::Folder(file.path(paste0(filterID, "_FALSE")),
+      synapser::synStore(synapser::Folder(file.path(paste0(contrast.types[m], "_FALSE")),
                                           parent = synapse_id))
     run_TF_contrasts_global_phospho_human(contrast.types, id.type, meta.df, 
                                           omics, gmt.list1 = gmt1,
@@ -1695,11 +1695,11 @@ run_TF_contrast_combos_global_human <- function(contrast.types, id.type, meta.df
     
     # run contrasts with FALSE filters
     setwd(temp.path)
-    dir.create(file.path(paste0(filterID, "_FALSE")))
-    setwd(file.path(paste0(filterID, "_FALSE")))
-    falsePath <- file.path(temp.path, paste0(contrast.types[m], "_TRUE"))
+    dir.create(file.path(paste0(contrast.types[m], "_FALSE")))
+    setwd(file.path(paste0(contrast.types[m], "_FALSE")))
+    falsePath <- file.path(temp.path, paste0(contrast.types[m], "_FALSE"))
     falseFolder <- 
-      synapser::synStore(synapser::Folder(file.path(paste0(filterID, "_FALSE")),
+      synapser::synStore(synapser::Folder(file.path(paste0(contrast.types[m], "_FALSE")),
                                           parent = synapse_id))
     run_TF_contrasts_global_human(contrast.types, id.type, meta.df, 
                                           omics, gmt.list1 = gmt1,
