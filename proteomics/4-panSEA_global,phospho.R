@@ -5,7 +5,7 @@
 # Last edit: 2024-02-09
 
 library(readxl); library(panSEA); library(synapser)
-library(stringr); library(tidyr); library(dplyr)
+library(stringr); library(tidyr); library(dplyr); library(Biobase)
 
 setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
 source("panSEA_helper.R")
@@ -126,7 +126,8 @@ meta.df[meta.df$`sample type` == "MSC Flow",]$MSC_Flow <- TRUE
 meta.df$Flow <- FALSE
 meta.df[grepl("Flow", meta.df$`sample type`),]$Flow <- TRUE
 
-globalFile <- synapser::synGet("syn54926061")
+synapser::synLogin()
+globalFile <- synapser::synGet("syn55225957")
 global.df <- read.table(
   globalFile$path, 
   sep = "\t")
@@ -134,7 +135,7 @@ global.df <- read.table(
 # add column for feature names and later make it the first column
 global.df$Gene <- rownames(global.df)
 
-dia <- list("meta" = meta.df,
+dia <- list("meta" = meta.df[meta.df$id %in% colnames(global.df), ],
             "global" = global.df)
 
 ### combine DIA & TMT
@@ -157,14 +158,12 @@ dia.tmt <- list("meta" = rbind(dia$meta, tmt$meta),
 # new.colnames <- paste0(old.colnames, "_TMT")
 # colnames(dia.tmt$phospho)[1:(ncol(dia.tmt$phospho)-1)] <- new.colnames
 
+
 #### 2. Import BeatAML data formatted for DMEA ####
 # import drug MOA annotations
 moa.BeatAML <- utils::read.csv(
   "~/OneDrive - PNNL/Documents/PTRC2/BeatAML_single_drug_moa.csv",
   stringsAsFactors = FALSE, fileEncoding = "latin1")
-
-# login to Synapse
-synapser::synLogin()
 
 # load data from Synapse
 BeatAML.data <- load_BeatAML_for_DMEA("BeatAML_DMEA_inputs")
@@ -193,6 +192,25 @@ method.data <- list("DIA" = dia,
                 "TMT" = tmt,
                 "DIA_&_TMT" = dia.tmt)
 all.degs <- data.frame()
+
+# look at histograms first
+for (k in 1:length(method.data)) {
+  if (grepl("DIA", names(method.data)[k])) {
+    omics <- list("Global" = method.data[[k]]$global)
+  } else {
+    omics <- list("Global" = method.data[[k]]$global,
+                  "Phospho" = method.data[[k]]$phospho)
+  }
+  for (i in 1:length(omics)) {
+    melted.df <- reshape2::melt(omics[[i]])
+    xlab <- paste("Normalized", names(omics)[i], "Expression")
+    title <- names(method.data)[k]
+    pdf(file.path(paste0(names(method.data)[k], "_", names(omics)[i], "_histogram.pdf")))
+    hist(melted.df$value, xlab = xlab, main = title)
+    dev.off()
+  }
+}
+
 for (k in 1:length(method.data)) {
   setwd(base.path)
   method.path <- file.path(base.path, names(method.data)[k])
@@ -208,13 +226,15 @@ for (k in 1:length(method.data)) {
   if (grepl("DIA", names(method.data)[k])) {
     omics <- list("global" = method.data[[k]]$global)
     run_TF_contrast_combos_global_human(contrasts, "id", meta.df, omics,
-                                                base.path = method.path, 
+                                                base.path = base.path,
+                                        temp.path = method.path, 
                                                 synapse_id = methodFolder)
   } else {
     omics <- list("global" = method.data[[k]]$global,
                   "phospho" = method.data[[k]]$phospho)
     run_TF_contrast_combos_global_phospho_human(contrasts, "id", meta.df, omics,
-                                                base.path = method.path, 
+                                                base.path = base.path,
+                                                temp.path = method.path, 
                                                 synapse_id = methodFolder) 
   }
   
@@ -225,6 +245,26 @@ for (k in 1:length(method.data)) {
   methodDEG$method <- names(method.data)[k]
   all.degs <- rbind(all.degs, methodDEG)
 }
+
+# # why aren't the Aza_Sensitive_FALSE in dia$global columns?
+# aza.res.dia <- c("X01184_CD34plus", "X01184_CD14plus", "X01184_CD14plusFlow", 
+#                  "X01184_MSCflow", "X01060_CD34plus", "X01060_CD14plus", 
+#                  "X01060_CD34plusFlow", "X01060_CD14plusFlow", "X01060_MSCflow", 
+#                  "X00105_CD34plus", "X00105_CD14plus", "X00105_CD34plusFlow", 
+#                  "X00105_CD14plusFlow", "X00105_MSCflow", "X00432_CD34plus", 
+#                  "X00432_CD14plus", "X00432_CD34plusFlow", 
+#                  "X00432_CD14plusFlow", "X00432_MSCflow", "X00839_CD34plus", 
+#                  "X00839_CD14plus", "X00839_CD34plusFlow", 
+#                  "X00839_CD14plusFlow", "X00839_MSCflow", "X00117_CD34plus",
+#                  "X00117_CD14plus", "X00117_CD34plusFlow", 
+#                  "X00117_CD14plusFlow", "X00117_MSCflow", "X00251_CD34plus", 
+#                  "X00251_CD14plus", "X00251_CD34plusFlow", 
+#                  "X00251_CD14plusFlow", "X00251_MSCflow", "X00571_CD34plus",
+#                  "X00571_CD14plus", "X00571_CD34plusFlow",
+#                  "X00571_CD14plusFlow", "X00571_MSCflow")
+# missing.aza.res.dia <- aza.res.dia[!(aza.res.dia %in% colnames(dia$global))] # X00251_MSCflow
+# missing.dia.meta <- dia$meta[!(dia$meta$id %in% colnames(dia$global)),] # just X00251_MSCflow
+
 setwd(base.path)
 all.DEG.files <- list("Differential_expression_results.csv" = 
                         all.degs,
@@ -241,11 +281,48 @@ save_to_synapse(all.DEG.files, synapse_id)
 
 markers <- unique(c("CD73", "CD90", "CD105", "CD106", "CD146", "STRO-1", "CD14", 
                     "CD34", "CD45", "HLA-DR", "CD4", "CD11c", "CD14", "CD64", 
-                    "CD34", "CD38", "CD123", "TIM3", "CD25", "CD32" "CD96"))
+                    "CD34", "CD38", "CD123", "TIM3", "CD25", "CD32", "CD96"))
 dia.tmt.markers <- dia.tmt$global[dia.tmt$global$Gene %in% markers,
                                   c("Gene", colnames(dia.tmt$global)[colnames(dia.tmt$global) != "Gene"])]
 write.csv(dia.tmt.markers, "Cell_markers_global_DIA_TMT.csv", row.names = NULL)
 
+### violin plots of CD14, CD34
+library(ggplot2)
+# load theme for plots
+bg.theme3 <- ggplot2::theme(
+  panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+  panel.border = element_rect(fill = NA),
+  panel.background = element_blank(),
+  axis.line = element_line(colour = "black"), 
+  axis.title.x = element_text(size = 16, colour = "black"),
+  axis.title.y = element_text(size = 16, colour = "black"),
+  axis.text.x = element_text(colour = "black", size =16), 
+  axis.text.y = element_text(colour = "black", size = 16),
+  axis.ticks.x = element_line(colour = "black"), 
+  axis.ticks.y = element_line(colour = "black"),
+  legend.title = element_blank(), legend.background = element_rect(), 
+  legend.position = "top",
+  legend.text = element_text(size = 14), legend.key = element_blank(),
+  plot.title = element_text(lineheight = .8, face = "bold", size = 36)
+)
+long.global <- reshape2::melt(dia.tmt$global, variable.name = "id")
+long.global <- merge(long.global, dia.tmt$meta, by = "id")
+long.global$Pooled <- NA
+long.global[long.global$Pooled_CD14_Pos,]$Pooled <- "CD14+"
+long.global[long.global$Pooled_CD34_Pos,]$Pooled <- "CD34+"
+long.global[long.global$MSC_Flow,]$Pooled <- "MSC"
+#long.global.markers <- reshape2::melt(dia.tmt.markers)
+for (i in 1:length(markers)) {
+  marker.df <- long.global[long.global$Gene == markers[i],]
+  if (nrow(marker.df) > 0) {
+    marker.violin <- ggplot2::ggplot(marker.df, 
+                                     aes(fill = method, x=Pooled, y=value)) + 
+      geom_violin(position=position_dodge(width=0.4), alpha=0.5) + 
+      geom_boxplot(width=0.1, position = position_dodge(width=0.4), alpha=0.5) + 
+      bg.theme3 + xlab("Sample Type") + ylab("Normalized Protein Expression")
+    ggsave(paste0("CD14_by_pooled_sample_type_", Sys.Date(), ".pdf"), marker.violin)
+  }
+}
 # source: https://www.novusbio.com/research-areas/stem-cells/mesenchymal-stem-cell-markers#:~:text=Sets%20of%20cell%20surface%20markers,%2C%20CD79a%20and%20HLA%2DDR.
 # monocytes should be high in CD14; source: https://www.abcam.com/primary-antibodies/immune-cell-markers-poster
 # erythrocytes should be high in CD235a; source: https://www.abcam.com/primary-antibodies/immune-cell-markers-poster
@@ -253,8 +330,10 @@ write.csv(dia.tmt.markers, "Cell_markers_global_DIA_TMT.csv", row.names = NULL)
 # HSCs (hematopoietic stem cells): CD34+, CD38-, CD45RA-, CD49+, CD90/Thy1+; source: https://www.abcam.com/primary-antibodies/immune-cell-markers-poster
 # more reading: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4616896/#:~:text=Hematopoietic%20stem%20cells%20(HSC)%20and,adipocytes%2C%20endothelial%20cells%20and%20myocyte.
 
-sig.degs.no.filter <- all.degs[is.na(all.degs$filter) & 
+sig.degs.no.filter <- all.degs[all.degs$filter == "_NA" & 
                                  all.degs$adj.P.Val <= 0.05, ]
+omics <- list("global" = dia.tmt$global,
+              "phospho" = dia.tmt$phospho)
 for (j in 1:length(contrasts)) {
   sig.degs <- sig.degs.no.filter[sig.degs.no.filter$Contrast == contrasts[j], ]
   
@@ -275,3 +354,4 @@ for (j in 1:length(contrasts)) {
               row.names = NULL)
   }
 }
+
