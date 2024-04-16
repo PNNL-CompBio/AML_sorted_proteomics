@@ -75,8 +75,8 @@ phospho.df <- read.table(
 global.df$Gene <- rownames(global.df)
 phospho.df$SUB_SITE <- rownames(phospho.df)
 tmt <- list("meta" = meta.df,
-            "global" = global.df,
-            "phospho" = phospho.df)
+            "global" = global.df, # 5169 gene symbols
+            "phospho" = phospho.df) # 794 phospho-sites
 
 ### DIA
 meta.df <- readxl::read_excel("Exp24metadataTable_DIA.xlsx") 
@@ -127,17 +127,19 @@ meta.df$Flow <- FALSE
 meta.df[grepl("Flow", meta.df$`sample type`),]$Flow <- TRUE
 
 synapser::synLogin()
-globalFile <- synapser::synGet("syn55225957")
+#globalFile <- synapser::synGet("syn55233852")
+globalFile <- synapser::synGet("syn55271973")
 global.df <- read.table(
   globalFile$path, 
   sep = "\t")
 
 # add column for feature names and later make it the first column
-global.df$Gene <- rownames(global.df)
+global.df$Gene <- rownames(global.df) # 6092 gene symbols
 
 dia <- list("meta" = meta.df[meta.df$id %in% colnames(global.df), ],
             "global" = global.df)
 
+#dia.wo.outliers <- list("meta" = )
 ### combine DIA & TMT
 dia$meta$method <- "DIA"
 tmt$meta$method <- "TMT"
@@ -157,6 +159,10 @@ dia.tmt <- list("meta" = rbind(dia$meta, tmt$meta),
 # old.colnames <- colnames(dia.tmt$phospho)[1:(ncol(dia.tmt$phospho)-1)]
 # new.colnames <- paste0(old.colnames, "_TMT")
 # colnames(dia.tmt$phospho)[1:(ncol(dia.tmt$phospho)-1)] <- new.colnames
+
+### PCAs
+library(MSnSet.utils)
+library(ggplot2)
 
 
 #### 2. Import BeatAML data formatted for DMEA ####
@@ -193,7 +199,8 @@ method.data <- list("DIA" = dia,
                 "DIA_&_TMT" = dia.tmt)
 all.degs <- data.frame()
 
-# look at histograms first
+# look at histograms and PCA first
+phenos <- c("Plex", "id", "patient", "SampleType", "Pooled", "Aza", "Ven", "Aza.Ven", "Flow", "method")
 for (k in 1:length(method.data)) {
   if (grepl("DIA", names(method.data)[k])) {
     omics <- list("Global" = method.data[[k]]$global)
@@ -201,15 +208,43 @@ for (k in 1:length(method.data)) {
     omics <- list("Global" = method.data[[k]]$global,
                   "Phospho" = method.data[[k]]$phospho)
   }
+  temp.meta <- method.data[[k]]$meta
+  row.names(temp.meta) <- temp.meta$id
+  temp.meta$Pooled <- NA
+  temp.meta[temp.meta$Pooled_CD14_Pos,]$Pooled <- "CD14+"
+  temp.meta[temp.meta$Pooled_CD34_Pos,]$Pooled <- "CD34+"
+  temp.meta[temp.meta$MSC_Flow,]$Pooled <- "MSC"
+  temp.meta$SampleType <- NA
+  temp.meta[temp.meta$CD14_Pos,]$SampleType <- "CD14+"
+  temp.meta[temp.meta$CD14_Pos_Flow,]$SampleType <- "CD14+ Flow"
+  temp.meta[temp.meta$CD34_Pos,]$SampleType <- "CD34+"
+  temp.meta[temp.meta$CD34_Pos_Flow,]$SampleType <- "CD34+ Flow"
+  temp.meta[temp.meta$MSC_Flow,]$SampleType <- "MSC Flow"
+  temp.phenos <- phenos[phenos %in% colnames(temp.meta)]
+  
   for (i in 1:length(omics)) {
+    # histogram
     melted.df <- reshape2::melt(omics[[i]])
     xlab <- paste("Normalized", names(omics)[i], "Expression")
     title <- names(method.data)[k]
     pdf(file.path(paste0(names(method.data)[k], "_", names(omics)[i], "_histogram.pdf")))
     hist(melted.df$value, xlab = xlab, main = title)
     dev.off()
+    
+    # pca
+    #sample.names <- temp.meta$id[temp.meta$id %in% colnames(omics[[i]])]
+    sample.names <- colnames(omics[[i]])[colnames(omics[[i]]) %in% temp.meta$id]
+    pca.data <- MSnSet(exprs = omics[[i]][, sample.names] %>% as.matrix(),
+                       pData = temp.meta[sample.names,])
+    for (j in 1:length(temp.phenos)) {
+      MSnSet.utils::plot_pca(pca.data, phenotype = temp.phenos[j]) + ggtitle(paste(names(method.data)[k], names(omics)[i], "PCA"))
+      ggsave(paste0(names(method.data)[k], "_", names(omics)[i], "_PCA_", temp.phenos[j], "_", Sys.Date(), ".pdf")) 
+    }
   }
 }
+# for DIA_&_TMT PCAs:
+# Error in `featureNames<-`(`*tmp*`, value = featureNames(featureData)) : 
+#   'value' length (0) must equal feature number in AssayData (6609)
 
 for (k in 1:length(method.data)) {
   setwd(base.path)
@@ -239,7 +274,7 @@ for (k in 1:length(method.data)) {
   }
   
   # get compiled DEGs
-  methodDEGs <- synapser::synGetChildren(methodFolder, list("file"), sortBy = 'NAME')
+  methodDEGs <- as.list(synapser::synGetChildren(methodFolder, list("file"), sortBy = 'NAME'))
   methodFile <- synapser::synGet(methodDEGs[[1]]$id)
   methodDEG <- read.csv(methodFile$path)
   methodDEG$method <- names(method.data)[k]
@@ -265,6 +300,12 @@ for (k in 1:length(method.data)) {
 # missing.aza.res.dia <- aza.res.dia[!(aza.res.dia %in% colnames(dia$global))] # X00251_MSCflow
 # missing.dia.meta <- dia$meta[!(dia$meta$id %in% colnames(dia$global)),] # just X00251_MSCflow
 
+# for TMT run_TF_contrast_combos_global_phospho_human:
+# Running ssGSEA using phospho_ksdb data
+# Running enrichment analysis...
+# Error in `$<-.data.frame`(`*tmp*`, "N_drugs", value = NA) : 
+#   replacement has 1 row, data has 0
+
 setwd(base.path)
 all.DEG.files <- list("Differential_expression_results.csv" = 
                         all.degs,
@@ -284,7 +325,7 @@ markers <- unique(c("CD73", "CD90", "CD105", "CD106", "CD146", "STRO-1", "CD14",
                     "CD34", "CD38", "CD123", "TIM3", "CD25", "CD32", "CD96"))
 dia.tmt.markers <- dia.tmt$global[dia.tmt$global$Gene %in% markers,
                                   c("Gene", colnames(dia.tmt$global)[colnames(dia.tmt$global) != "Gene"])]
-write.csv(dia.tmt.markers, "Cell_markers_global_DIA_TMT.csv", row.names = NULL)
+write.csv(dia.tmt.markers, "Cell_markers_global_DIA_TMT.csv", row.names = FALSE)
 
 ### violin plots of CD14, CD34
 library(ggplot2)
@@ -311,6 +352,16 @@ long.global$Pooled <- NA
 long.global[long.global$Pooled_CD14_Pos,]$Pooled <- "CD14+"
 long.global[long.global$Pooled_CD34_Pos,]$Pooled <- "CD34+"
 long.global[long.global$MSC_Flow,]$Pooled <- "MSC"
+long.global$SampleType <- NA
+long.global[long.global$CD14_Pos,]$SampleType <- "CD14+"
+long.global[long.global$CD14_Pos_Flow,]$SampleType <- "CD14+ Flow"
+long.global[long.global$CD34_Pos,]$SampleType <- "CD34+"
+long.global[long.global$CD34_Pos_Flow,]$SampleType <- "CD34+ Flow"
+long.global[long.global$MSC_Flow,]$SampleType <- "MSC Flow"
+
+# for CD14: X00105_CD34plusFlow is unusually high, X00074_MSCflow is pretty high and so is X25
+# for CD34: X01184_CD14plusFlow and X00251_CD14plusFlow are unusually high
+
 #long.global.markers <- reshape2::melt(dia.tmt.markers)
 for (i in 1:length(markers)) {
   marker.df <- long.global[long.global$Gene == markers[i],]
@@ -320,7 +371,13 @@ for (i in 1:length(markers)) {
       geom_violin(position=position_dodge(width=0.4), alpha=0.5) + 
       geom_boxplot(width=0.1, position = position_dodge(width=0.4), alpha=0.5) + 
       bg.theme3 + xlab("Sample Type") + ylab("Normalized Protein Expression")
-    ggsave(paste0("CD14_by_pooled_sample_type_", Sys.Date(), ".pdf"), marker.violin)
+    ggsave(paste0(markers[i],"_by_pooled_sample_type_", Sys.Date(), ".pdf"), marker.violin)
+    marker.violin <- ggplot2::ggplot(marker.df, 
+                                     aes(fill = method, x=SampleType, y=value)) + 
+      geom_violin(position=position_dodge(width=0.4), alpha=0.5) + 
+      geom_boxplot(width=0.1, position = position_dodge(width=0.4), alpha=0.5) + 
+      bg.theme3 + xlab("Sample Type") + ylab("Normalized Protein Expression")
+    ggsave(paste0(markers[i],"_by_sample_type_", Sys.Date(), ".pdf"), marker.violin)
   }
 }
 # source: https://www.novusbio.com/research-areas/stem-cells/mesenchymal-stem-cell-markers#:~:text=Sets%20of%20cell%20surface%20markers,%2C%20CD79a%20and%20HLA%2DDR.
@@ -330,28 +387,46 @@ for (i in 1:length(markers)) {
 # HSCs (hematopoietic stem cells): CD34+, CD38-, CD45RA-, CD49+, CD90/Thy1+; source: https://www.abcam.com/primary-antibodies/immune-cell-markers-poster
 # more reading: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4616896/#:~:text=Hematopoietic%20stem%20cells%20(HSC)%20and,adipocytes%2C%20endothelial%20cells%20and%20myocyte.
 
-sig.degs.no.filter <- all.degs[all.degs$filter == "_NA" & 
-                                 all.degs$adj.P.Val <= 0.05, ]
+sig.degs <- read.csv("Differential_expression_results_max_5_percent_FDR.csv")
+filters <- unique(sig.degs$filter)
 omics <- list("global" = dia.tmt$global,
               "phospho" = dia.tmt$phospho)
-for (j in 1:length(contrasts)) {
-  sig.degs <- sig.degs.no.filter[sig.degs.no.filter$Contrast == contrasts[j], ]
-  
-  # get top 25 & bottom 25 degs
-  top.sig.degs <- sig.degs %>% slice_max(Log2FC, 25)
-  bot.sig.degs <- sig.degs %>% slice_min(Log2FC, 25)
-  
-  for (i in 1:length(omics)) {
-    if (i == 1) {
-      feature.name <- "Gene"
-    } else {
-      feature.name <- "SUB_SITE"
-    }
-    # get data for top & bottom degs
-    top.bot.df <- omics[[i]][omics[[i]][,feature.name] %in% top.sig.degs[,feature.name],
-                             c(feature.name, colnames(omics[[i]])[colnames(omics[[i]]) != feature.name])] 
-    write.csv(top.bot.df, paste0(names(omics)[i], "_", contrasts[j], "_top_25_bottom_25_diffexp_max5percentFDR.csv"),
-              row.names = NULL)
+n.degs <- 50
+for (k in 1:length(filters)) {
+  setwd(base.path)
+  setwd("DIA_&_TMT")
+  if (filters[k] == "_NA") {
+    filter.name <- "no_filter"
+  } else {
+    filter.name <- filters[k]
+  }
+  setwd(filter.name)
+  for (j in 1:length(contrasts)) {
+    sig.degs <- sig.degs.no.filter[sig.degs.no.filter$Contrast == contrasts[j], ]
+    if (nrow(sig.degs) > 0) {
+      contrast.name <- paste0(contrasts[j], "_TRUE_vs_FALSE")
+      if (file.exists(contrast.name)) {
+        setwd(contrast.name)
+        # get top 25 & bottom 25 degs
+        top.sig.degs <- sig.degs %>% slice_max(Log2FC, n.degs/2)
+        bot.sig.degs <- sig.degs %>% slice_min(Log2FC, n.degs/2)
+        
+        for (i in 1:length(omics)) {
+          if (i == 1) {
+            feature.name <- "Gene"
+          } else {
+            feature.name <- "SUB_SITE"
+          }
+          # get data for top & bottom degs
+          top.bot.df <- omics[[i]][omics[[i]][,feature.name] %in% top.sig.degs[,feature.name],
+                                   c(feature.name, colnames(omics[[i]])[colnames(omics[[i]]) != feature.name])] 
+          write.csv(top.bot.df, paste0(names(omics)[i], "_", contrasts[j], 
+          "_top_", n.degs/2, "_bottom_", n.degs/2, "_diffexp_max5percentFDR.csv"),
+                    row.names = NULL)
+        }
+      } 
+    } 
   }
 }
+
 
