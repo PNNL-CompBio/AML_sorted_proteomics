@@ -77,6 +77,14 @@ phospho.df$SUB_SITE <- rownames(phospho.df)
 tmt <- list("meta" = meta.df,
             "global" = global.df, # 5169 gene symbols
             "phospho" = phospho.df) # 794 phospho-sites
+test.tmt.global <- tmt$global[ , which(colMeans(!is.na(tmt$global)) >= 0.5)] # no samples removed (all samples had at least half of proteins measured)
+test.tmt.global75 <- tmt$global[ , which(colMeans(!is.na(tmt$global)) >= 0.75)] # no samples removed (all samples had at least 3/4 of proteins measured)
+test.tmt.global80 <- tmt$global[ , which(colMeans(!is.na(tmt$global)) >= 0.80)] # 1 sample removed (requiring at least 4/5 of proteins measured)
+test.tmt.global90 <- tmt$global[ , which(colMeans(!is.na(tmt$global)) >= 0.90)] # 1 sample removed (requiring at least 9/10 of proteins measured)
+tmt80 <- list("meta" = tmt$meta[tmt$meta$id %in% colnames(test.tmt.global80), ],
+              "global" = test.tmt.global80)
+tmt90 <- list("meta" = tmt$meta[tmt$meta$id %in% colnames(test.tmt.global90), ],
+              "global" = test.tmt.global90)
 
 ### DIA
 meta.df <- readxl::read_excel("Exp24metadataTable_DIA.xlsx") 
@@ -133,26 +141,58 @@ global.df <- read.table(
   globalFile$path, 
   sep = "\t")
 
+# require samples to have at least 50% of proteins quantified
+global.df <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.5)] # 42 out of 48 samples are kept
+global.df75 <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.75)] # 36 out of 48 samples are kept
+global.df80 <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.80)] # 34 out of 48 samples are kept
+global.df90 <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.90)] # 28 out of 48 samples are kept
+global.df100 <- global.df[ , which(colMeans(!is.na(global.df)) >= 1)] # 0 out of 48 samples are kept
+
 # add column for feature names and later make it the first column
-global.df$Gene <- rownames(global.df) # 6092 gene symbols
+global.df75$Gene <- rownames(global.df75) # 6092 gene symbols
+global.df80$Gene <- rownames(global.df80) # 6092 gene symbols
+global.df90$Gene <- rownames(global.df90) # 6092 gene symbols
 
 dia <- list("meta" = meta.df[meta.df$id %in% colnames(global.df), ],
             "global" = global.df)
+dia75 <- list("meta" = meta.df[meta.df$id %in% colnames(global.df75), ],
+            "global" = global.df75)
+dia80 <- list("meta" = dia$meta[dia$meta$id %in% colnames(global.df80), ],
+              "global" = global.df80)
+dia90 <- list("meta" = dia$meta[dia$meta$id %in% colnames(global.df90), ],
+              "global" = global.df90)
 
 #dia.wo.outliers <- list("meta" = )
 ### combine DIA & TMT
-dia$meta$method <- "DIA"
+dia75$meta$method <- "DIA"
+dia80$meta$method <- "DIA"
+dia90$meta$method <- "DIA"
+tmt80$meta$method <- "TMT"
+tmt90$meta$method <- "TMT"
 tmt$meta$method <- "TMT"
 
 # make sure dia & tmt meta data have same columns
-tmt$meta[, colnames(tmt$meta)[!(colnames(tmt$meta) %in% colnames(dia$meta))]] <- NULL
-dia$meta[, colnames(dia$meta)[!(colnames(dia$meta) %in% colnames(tmt$meta))]] <- NULL
+tmt$meta[, colnames(tmt$meta)[!(colnames(tmt$meta) %in% colnames(dia75$meta))]] <- NULL
+dia75$meta[, colnames(dia75$meta)[!(colnames(dia75$meta) %in% colnames(tmt$meta))]] <- NULL
+tmt80$meta[, colnames(tmt80$meta)[!(colnames(tmt80$meta) %in% colnames(dia80$meta))]] <- NULL
+dia80$meta[, colnames(dia80$meta)[!(colnames(dia80$meta) %in% colnames(tmt80$meta))]] <- NULL
+tmt90$meta[, colnames(tmt90$meta)[!(colnames(tmt90$meta) %in% colnames(dia90$meta))]] <- NULL
+dia90$meta[, colnames(dia90$meta)[!(colnames(dia90$meta) %in% colnames(tmt90$meta))]] <- NULL
 
 dia.tmt <- list("meta" = rbind(dia$meta, tmt$meta),
                 "global" = merge(dia$global, tmt$global, all = TRUE, 
                                  suffixes = c("_DIA", "_TMT")),
                 "phospho" = tmt$phospho)
-
+dia.tmt75 <- list("meta" = rbind(dia75$meta, tmt$meta),
+                "global" = merge(dia75$global, tmt$global, all = TRUE, 
+                                 suffixes = c("_DIA", "_TMT")),
+                "phospho" = tmt$phospho)
+dia.tmt80 <- list("meta" = rbind(dia80$meta, tmt80$meta),
+                  "global" = merge(dia80$global, tmt80$global, all = TRUE, 
+                                   suffixes = c("_DIA", "_TMT")))
+dia.tmt90 <- list("meta" = rbind(dia90$meta, tmt90$meta),
+                  "global" = merge(dia90$global, tmt90$global, all = TRUE, 
+                                   suffixes = c("_DIA", "_TMT")))
 # don't need to change IDs because they were distinct for DIA & TMT
 # # add _DIA and _TMT to end of ids
 # dia.tmt$method$id <- paste0(dia.tmt$method$id, "_", dia.tmt$method$method)
@@ -197,6 +237,15 @@ contrasts <- colnames(dia.tmt$meta)[10:(ncol(dia.tmt$meta)-1)]
 method.data <- list("DIA" = dia,
                 "TMT" = tmt,
                 "DIA_&_TMT" = dia.tmt)
+method.data <- list("DIA_75_Percent_Coverage" = dia75,
+                    "TMT_75_Percent_Coverage" = tmt,
+                    "DIA_&_TMT_75_Percent_Coverage" = dia.tmt75)
+method.data <- list("DIA_75_Percent_Coverage" = dia75,
+                    "TMT_75_Percent_Coverage" = tmt,
+                    "DIA_&_TMT_75_Percent_Coverage" = dia.tmt75)
+method.data <- list("DIA_80_Percent_Coverage" = dia80,
+                    "TMT_80_Percent_Coverage" = tmt80,
+                    "DIA_&_TMT_80_Percent_Coverage" = dia.tmt80)
 all.degs <- data.frame()
 
 # look at histograms and PCA first
@@ -205,8 +254,9 @@ for (k in 1:length(method.data)) {
   if (grepl("DIA", names(method.data)[k])) {
     omics <- list("Global" = method.data[[k]]$global)
   } else {
-    omics <- list("Global" = method.data[[k]]$global,
-                  "Phospho" = method.data[[k]]$phospho)
+    omics <- list("Global" = method.data[[k]]$global)
+    # omics <- list("Global" = method.data[[k]]$global,
+    #               "Phospho" = method.data[[k]]$phospho)
   }
   temp.meta <- method.data[[k]]$meta
   row.names(temp.meta) <- temp.meta$id
@@ -227,7 +277,7 @@ for (k in 1:length(method.data)) {
     melted.df <- reshape2::melt(omics[[i]])
     xlab <- paste("Normalized", names(omics)[i], "Expression")
     title <- names(method.data)[k]
-    pdf(file.path(paste0(names(method.data)[k], "_", names(omics)[i], "_histogram.pdf")))
+    pdf(file.path(paste0(names(method.data)[k], "_", names(omics)[i], "_histogram_", Sys.Date(), ".pdf")))
     hist(melted.df$value, xlab = xlab, main = title)
     dev.off()
     
@@ -323,9 +373,17 @@ save_to_synapse(all.DEG.files, synapse_id)
 markers <- unique(c("CD73", "CD90", "CD105", "CD106", "CD146", "STRO-1", "CD14", 
                     "CD34", "CD45", "HLA-DR", "CD4", "CD11c", "CD14", "CD64", 
                     "CD34", "CD38", "CD123", "TIM3", "CD25", "CD32", "CD96"))
-dia.tmt.markers <- dia.tmt$global[dia.tmt$global$Gene %in% markers,
-                                  c("Gene", colnames(dia.tmt$global)[colnames(dia.tmt$global) != "Gene"])]
-write.csv(dia.tmt.markers, "Cell_markers_global_DIA_TMT.csv", row.names = FALSE)
+markers <- unique(c("NT5E", "THY1", "ENG", "VCAM1", "MCAM", "CD14", "CD34", 
+                    "PTPRC", "CD4", "ITGAX", "ITGAX", "FCGR1A", "CD38", "IL3RA", 
+                    "HAVCR2", "IL2RA", "ISG20", "FCGR2A", "FCGR2B", "CD96"))
+dia.tmt.markers <- dia.tmt75$global[dia.tmt75$global$Gene %in% markers,
+                                  c("Gene", colnames(dia.tmt75$global)[colnames(dia.tmt75$global) != "Gene"])]
+dia.tmt.markers <- dia.tmt80$global[dia.tmt80$global$Gene %in% markers,
+                                    c("Gene", colnames(dia.tmt80$global)[colnames(dia.tmt80$global) != "Gene"])]
+write.csv(dia.tmt.markers, "Cell_markers_global_DIA_TMT_80percentCoverage_2024-04-17.csv", row.names = FALSE)
+dia.tmt.markers <- dia.tmt90$global[dia.tmt90$global$Gene %in% markers,
+                                    c("Gene", colnames(dia.tmt90$global)[colnames(dia.tmt90$global) != "Gene"])]
+write.csv(dia.tmt.markers, "Cell_markers_global_DIA_TMT_90percentCoverage_2024-04-17.csv", row.names = FALSE)
 
 ### violin plots of CD14, CD34
 library(ggplot2)
@@ -346,8 +404,12 @@ bg.theme3 <- ggplot2::theme(
   legend.text = element_text(size = 14), legend.key = element_blank(),
   plot.title = element_text(lineheight = .8, face = "bold", size = 36)
 )
-long.global <- reshape2::melt(dia.tmt$global, variable.name = "id")
-long.global <- merge(long.global, dia.tmt$meta, by = "id")
+long.global <- reshape2::melt(dia.tmt75$global, variable.name = "id")
+long.global <- merge(long.global, dia.tmt75$meta, by = "id")
+long.global <- reshape2::melt(dia.tmt80$global, variable.name = "id")
+long.global <- merge(long.global, dia.tmt80$meta, by = "id")
+long.global <- reshape2::melt(dia.tmt90$global, variable.name = "id")
+long.global <- merge(long.global, dia.tmt90$meta, by = "id")
 long.global$Pooled <- NA
 long.global[long.global$Pooled_CD14_Pos,]$Pooled <- "CD14+"
 long.global[long.global$Pooled_CD34_Pos,]$Pooled <- "CD34+"
@@ -371,13 +433,13 @@ for (i in 1:length(markers)) {
       geom_violin(position=position_dodge(width=0.4), alpha=0.5) + 
       geom_boxplot(width=0.1, position = position_dodge(width=0.4), alpha=0.5) + 
       bg.theme3 + xlab("Sample Type") + ylab("Normalized Protein Expression")
-    ggsave(paste0(markers[i],"_by_pooled_sample_type_", Sys.Date(), ".pdf"), marker.violin)
+    ggsave(paste0(markers[i],"_by_pooled_sample_type_90percentCoverage_", Sys.Date(), ".pdf"), marker.violin)
     marker.violin <- ggplot2::ggplot(marker.df, 
                                      aes(fill = method, x=SampleType, y=value)) + 
       geom_violin(position=position_dodge(width=0.4), alpha=0.5) + 
       geom_boxplot(width=0.1, position = position_dodge(width=0.4), alpha=0.5) + 
       bg.theme3 + xlab("Sample Type") + ylab("Normalized Protein Expression")
-    ggsave(paste0(markers[i],"_by_sample_type_", Sys.Date(), ".pdf"), marker.violin)
+    ggsave(paste0(markers[i],"_by_sample_type_90percentCoverage_", Sys.Date(), ".pdf"), marker.violin)
   }
 }
 # source: https://www.novusbio.com/research-areas/stem-cells/mesenchymal-stem-cell-markers#:~:text=Sets%20of%20cell%20surface%20markers,%2C%20CD79a%20and%20HLA%2DDR.
