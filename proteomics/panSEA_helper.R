@@ -1,13 +1,13 @@
 # Differential expression & enrichment analyses: global & phospho
 # Author: Belinda B. Garana
 # Created: 2023-12-06
-# Last edit: 2024-02-16
+# Last edit: 2024-04-17
 
 library(readxl); library(panSEA); library(synapser)
 library(stringr); library(tidyr)
 library(dplyr)
 
-## get CCLE proteomics formatted for DMEA
+## get gmt information for GSEA
 get_gmt1 <- function(gmt.list1 = c("msigdb_Homo sapiens_C2_CP:KEGG",
                                    "msigdb_Homo sapiens_H",
                                    "msigdb_Homo sapiens_C1")) {
@@ -49,6 +49,7 @@ get_gmt1 <- function(gmt.list1 = c("msigdb_Homo sapiens_C2_CP:KEGG",
   return(gmt1)
 }
 
+# get gmt information for GSEA relevant to Chr8
 get_chr8_gmt1 <- function(gmt.list1 = c("msigdb_Homo sapiens_C2_CP:KEGG",
                                    "msigdb_Homo sapiens_H",
                                    "msigdb_Homo sapiens_C1",
@@ -110,6 +111,7 @@ get_chr8_gmt1 <- function(gmt.list1 = c("msigdb_Homo sapiens_C2_CP:KEGG",
   return(gmt1)
 }
 
+# get kinase-substrate database information in gmt format for KSEA
 get_ksdb <- function(organism="human"){
   if (is.character(organism)) {
     if (organism == "human") {
@@ -138,6 +140,7 @@ get_ksdb <- function(organism="human"){
   return(gmt)
 }
 
+# get gmt information for KSEA/SSEA relevant to chr8
 get_chr8_gmt2 <- function() {
   if (file.exists("chr8_gmt2_run_contrasts_global_phospho_human.rds")) {
     gmt2 <- readRDS("chr8_gmt2_run_contrasts_global_phospho_human.rds")
@@ -146,6 +149,7 @@ get_chr8_gmt2 <- function() {
   }
 }
 
+# get CCLE global proteomics data
 get_CCLE_prot <- function() {
   if (file.exists("CCLE_proteomics.csv")) {
     prot.df.noNA <- read.csv("CCLE_proteomics.csv")
@@ -209,6 +213,7 @@ get_top_mtn_plots <- function(base.result, n.top = 10, EA.type = "GSEA",
   return(all.top.mtn)
 }
 
+# save folder and nested files/subfolders to Synapse
 save_to_synapse <- function(temp.files, resultsFolder = NULL) {
   CSV.files <- names(temp.files)[grepl(".csv", names(temp.files))]
   if (length(CSV.files) > 0) {
@@ -702,20 +707,19 @@ run_contrasts_global_phospho_human <- function(contrasts, contrast.type, id.type
   }
 }
 
-run_contrasts_human <- function(contrast.type, contrasts = as.list(rep(c(TRUE, FALSE), length(contrast.type))),
-                                id.type, meta.df, 
-                                omics, types = c("global", "phospho"),
+run_contrasts <- function(contrast.type, contrasts = as.list(rep(c(TRUE, FALSE), length(contrast.type))),
+                                id.type, meta.df, omics, types = c("global", "phospho"),
                                 feature.names = c("Gene", "SUB_SITE"),
                                 gmt.list1 = c("msigdb_Homo sapiens_C2_CP:KEGG",
                                                                     "msigdb_Homo sapiens_H",
                                                                     "msigdb_Homo sapiens_C1"),
-                                               EA.types = c("KEGG", "Hallmark", "Positional"),
-                                               gmt.list2 = c("ksdb_human", "sub"),
-                                               expr = as.list(rep("adherent CCLE", 3)),
-                                               gmt.drug = "PRISM", drug.sens = "PRISM", 
-                                               base.path = "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/",
-                                               temp.path, subfolder = TRUE,
-                                               synapse_id = NULL) {
+                          EA.types = c("KEGG", "Hallmark", "Positional"),
+                          gmt.list2 = c("ksdb_human", "sub"),
+                          expr = as.list(rep("adherent CCLE", 3)),
+                          gmt.drug = "PRISM", drug.sens = "PRISM", 
+                          base.path = "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/",
+                          temp.path, subfolder = TRUE, synapse_id = NULL,
+                          compileDEGs = TRUE, filter = NA, filterID = NULL) {
   setwd(base.path)
   # load set annotations
   if (gmt.list1[1] == "chr8") {
@@ -750,6 +754,7 @@ run_contrasts_human <- function(contrast.type, contrasts = as.list(rep(c(TRUE, F
   }
   
   prot.df.noNA <- get_CCLE_prot()
+  all.degs <- data.frame()
   
   ## for each contrast: 
   for (k in 1:length(contrasts)) {
@@ -774,6 +779,9 @@ run_contrasts_human <- function(contrast.type, contrasts = as.list(rep(c(TRUE, F
       
       ## for phospho data:
       # run GSEA for each gmt in gmt2 and then check coverage of 2+ sets in gmt1
+      gsea1.inputs <- deg
+      KSEA <- FALSE
+      SSEA <- FALSE
       if (grepl("phospho", names(deg), ignore.case = TRUE)) {
         n.phospho <- grep("phospho", names(deg), ignore.case = TRUE)
         gsea2.inputs <- list(deg[[n.phospho]], deg[[n.phospho]])
@@ -798,43 +806,32 @@ run_contrasts_human <- function(contrast.type, contrasts = as.list(rep(c(TRUE, F
             nrow(gsea2$all.results[[2]]$result) > 100) {
           KSEA <- TRUE
           SSEA <- TRUE
-          gsea1.inputs <- list("global" = deg[[1]],
-                               "phospho_ksdb" = gsea2$all.results[[1]]$result,
-                               "phospho_sub" = gsea2$all.results[[2]]$result) 
+          gsea1.inputs[["phospho_ksdb"]] <- gsea2$all.results[[1]]$result
+          gsea1.inputs[["phospho_sub"]] <- gsea2$all.results[[2]]$result 
           prot.expr <- list(prot.df.noNA, prot.df.noNA, prot.df.noNA)
           features1 <- c("Gene", "Feature_set", "Feature_set")
           rank.var <- c("Log2FC", "NES", "NES")
         } else if (nrow(gsea2$all.results[[1]]$result) > 100) {
           KSEA <- TRUE
-          SSEA <- FALSE
-          gsea1.inputs <- list("global" = deg[[1]],
-                               "phospho_ksdb" = gsea2$all.results[[1]]$result)
+          gsea1.inputs[["phospho_ksdb"]] <- gsea2$all.results[[1]]$result
           prot.expr <- list(prot.df.noNA, prot.df.noNA)
           features1 <- c("Gene", "Feature_set")
           rank.var <- c("Log2FC", "NES")
         } else if (nrow(gsea2$all.results[[2]]$result) > 100) {
-          KSEA <- FALSE
           SSEA <- TRUE
-          gsea1.inputs <- list("global" = deg[[1]],
-                               "phospho_sub" = gsea2$all.results[[2]]$result) 
+          gsea1.inputs[["phospho_sub"]] <- gsea2$all.results[[2]]$result 
           prot.expr <- list(prot.df.noNA, prot.df.noNA)
           features1 <- c("Gene", "Feature_set")
           rank.var <- c("Log2FC", "NES")
         } else {
-          KSEA <- FALSE
-          SSEA <- FALSE
-          gsea1.inputs <- list("global" = deg[[1]])
           prot.expr <- list(prot.df.noNA)
           features1 <- c("Gene")
           rank.var <- c("Log2FC")
         }
       } else {
         gsea2 <- NULL
-        KSEA <- FALSE
-        SSEA <- FALSE
-        gsea1.inputs <- list(types[1] = deg[[1]])
         prot.expr <- list(prot.df.noNA)
-        features1 <- feature.names[1]
+        features1 <- feature.names[feature.names != "SUB_SITE"]
         rank.var <- c("Log2FC")
       }
       
@@ -1120,6 +1117,21 @@ run_contrasts_human <- function(contrast.type, contrasts = as.list(rep(c(TRUE, F
       
       save_to_synapse(all.files, contrastFolder)
       
+      # compile DEGs if relevant
+      if (compileDEGs) {
+        # add feature type for each omics
+        for (i in 1:length(deg)) {
+          deg[[i]]$Feature_type <- colnames(deg[[i]])[1]
+          colnames(deg[[i]])[1] <- "Feature"
+        }
+        
+        # rbind and add contrast information
+        temp.degs <- na.omit(data.table::rbindlist(deg, use.names = TRUE, fill = TRUE))
+        temp.degs$Filter <- paste0(filterID, "_", filter)
+        temp.degs$Contrast <- contrast.name
+        all.degs <- rbind(all.degs, temp.degs)
+      }
+      
       # make space to process next contrast
       gsea1 <- NULL
       gsea2 <- NULL
@@ -1127,6 +1139,145 @@ run_contrasts_human <- function(contrast.type, contrasts = as.list(rep(c(TRUE, F
       deg <- NULL
       gsea1.inputs <- NULL
     }
+  }
+  
+  if (compileDEGs) {
+    all.DEG.files <- list("Differential_expression_results.csv" = 
+                            all.degs,
+                          "Differential_expression_results_max_5_percent_FDR.csv" = 
+                            all.degs[all.degs$adj.P.Val <= 0.05, ])
+    save_to_synapse(all.DEG.files, synapse_id)
+  }
+}
+
+run_contrast_combos <- function(contrast.type, contrasts = as.list(rep(c(TRUE, FALSE), length(contrast.type))),
+                          id.type, meta.df, 
+                          omics, types = c("global", "phospho"),
+                          feature.names = c("Gene", "SUB_SITE"),
+                          gmt.list1 = c("msigdb_Homo sapiens_C2_CP:KEGG",
+                                        "msigdb_Homo sapiens_H",
+                                        "msigdb_Homo sapiens_C1"),
+                          EA.types = c("KEGG", "Hallmark", "Positional"),
+                          gmt.list2 = c("ksdb_human", "sub"),
+                          expr = as.list(rep("adherent CCLE", 3)),
+                          gmt.drug = "PRISM", drug.sens = "PRISM", 
+                          base.path = "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/",
+                          temp.path, subfolder = TRUE,
+                          synapse_id = NULL, compileDEGs = TRUE, 
+                          filter = NA, filterID = NULL) {
+  setwd(base.path)
+  # load set annotations
+  if (gmt.list1[1] == "chr8") {
+    gmt1 <- get_chr8_gmt1()
+  } else {
+    gmt1 <- get_gmt1(gmt.list1)
+  }
+  
+  if (grepl("phospho", types, ignore.case = TRUE)) {
+    if (gmt.list2[1] == "chr8") {
+      gmt2 <- get_chr8_gmt2()
+    } else {
+      gmt2 <- list()
+      for (i in 1:length(gmt.list2)) {
+        if (is.character(gmt.list2[i])) {
+          if (grepl("ksdb", gmt.list2[i], ignore.case = TRUE)) {
+            org <- stringr::str_split(gmt.list2[i], "_")[[1]][2]
+            gmt2[[i]] <- get_ksdb(organism = org)
+          } else if (gmt.list2[i] == "sub") {
+            SUB_SITE <- omics[[2]]$SUB_SITE
+            phospho.ref <- data.frame(SUB_SITE)
+            phospho.ref <- phospho.ref %>% tidyr::extract(SUB_SITE, "KINASE",
+                                                          remove = FALSE)
+            SUB_SITE <- NULL
+            gmt2[[i]] <- DMEA::as_gmt(phospho.ref, "SUB_SITE", "KINASE")
+          }
+        } else {
+          gmt2[[i]] <- gmt.list2[i]
+        }
+      }
+    } 
+  }
+  
+  all.degs <- data.frame()
+  # run contrasts with no filters
+  setwd(temp.path)
+  dir.create("no_filter")
+  setwd("no_filter")
+  nullPath <- file.path(temp.path, "no_filter")
+  nullFolder <- 
+    synapser::synStore(synapser::Folder("no_filter",
+                                        parent = synapse_id))
+  run_contrasts(contrast.types, id.type, meta.df, 
+                omics, gmt.list1 = gmt1,
+                EA.types, gmt.list2 = gmt2,
+                expr,
+                gmt.drug, drug.sens, 
+                base.path, temp.path = nullPath, subfolder,
+                synapse_id = nullFolder, compileDEGs)
+  if (compileDEGs) {
+    nullFiles <- as.list(synapser::synGetChildren(nullFolder, list("file"), sortBy = 'NAME'))
+    nullFile <- synapser::synGet(nullFiles[[1]]$id)
+    nullDEGs <- read.csv(nullFile$path)
+    all.degs <- rbind(all.degs, nullDEGs)
+  }
+  
+  for (m in 1:length(contrast.types)) {
+    # run contrasts with TRUE filters
+    setwd(temp.path)
+    dir.create(file.path(paste0(contrast.types[m], "_TRUE")))
+    setwd(file.path(paste0(contrast.types[m], "_TRUE")))
+    truePath <- file.path(temp.path, paste0(contrast.types[m], "_TRUE"))
+    trueFolder <- 
+      synapser::synStore(synapser::Folder(file.path(paste0(contrast.types[m], "_TRUE")),
+                                          parent = synapse_id))
+    run_contrasts(contrast.types, id.type, meta.df, 
+                                          omics, gmt.list1 = gmt1,
+                                          EA.types,
+                                          gmt.list2 = gmt2,
+                                          expr,
+                                          gmt.drug, drug.sens, 
+                                          base.path, temp.path = truePath, subfolder,
+                                          synapse_id = trueFolder, compileDEGs, 
+                                          filter = "TRUE", filterID = contrast.types[m])
+    if (compileDEGs) {
+      trueDEGfiles <- as.list(synapser::synGetChildren(trueFolder, list("file"), sortBy = 'NAME'))
+      trueDEGfile <- synapser::synGet(trueDEGfiles[[1]]$id)
+      trueDEGs <- read.csv(trueDEGfile$path)
+      all.degs <- rbind(all.degs, trueDEGs)
+    }
+    
+    # run contrasts with FALSE filters
+    setwd(temp.path)
+    dir.create(file.path(paste0(contrast.types[m], "_FALSE")))
+    setwd(file.path(paste0(contrast.types[m], "_FALSE")))
+    falsePath <- file.path(temp.path, paste0(contrast.types[m], "_FALSE"))
+    falseFolder <- 
+      synapser::synStore(synapser::Folder(file.path(paste0(contrast.types[m], "_FALSE")),
+                                          parent = synapse_id))
+    run_contrasts(contrast.types, id.type, meta.df, 
+                                          omics, gmt.list1 = gmt1,
+                                          EA.types,
+                                          gmt.list2 = gmt2,
+                                          expr,
+                                          gmt.drug, drug.sens, 
+                                          base.path, temp.path = falsePath, subfolder,
+                                          synapse_id = falseFolder, compileDEGs, 
+                                          filter = "FALSE", filterID = contrast.types[m])
+    if (compileDEGs) {
+      falseDEGfiles <- as.list(synapser::synGetChildren(falseFolder, list("file"), sortBy = 'NAME'))
+      falseDEGfile <- synapser::synGet(falseDEGfiles[[1]]$id)
+      falseDEGs <- read.csv(falseDEGfile$path)
+      all.degs <- rbind(all.degs, falseDEGs)
+    }
+  }
+  
+  if (compileDEGs) {
+    setwd(temp.path)
+    all.DEG.files <- list("Differential_expression_results.csv" = 
+                            all.degs,
+                          "Differential_expression_results_max_5_percent_FDR.csv" = 
+                            all.degs[all.degs$adj.P.Val <= 0.05, ])
+    save_to_synapse(all.DEG.files, synapse_id)
   }
 }
 
