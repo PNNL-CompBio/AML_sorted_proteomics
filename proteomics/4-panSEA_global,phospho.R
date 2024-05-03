@@ -8,7 +8,7 @@ library(readxl); library(panSEA); library(synapser)
 library(stringr); library(tidyr); library(dplyr); library(Biobase)
 
 setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-source("panSEA_helper.R")
+source("panSEA_helper_20240502.R")
 
 # overview
 #### 1. Import metadata & crosstabs ####
@@ -77,14 +77,14 @@ phospho.df$SUB_SITE <- rownames(phospho.df)
 tmt <- list("meta" = meta.df,
             "global" = global.df, # 5169 gene symbols
             "phospho" = phospho.df) # 794 phospho-sites
-test.tmt.global <- tmt$global[ , which(colMeans(!is.na(tmt$global)) >= 0.5)] # no samples removed (all samples had at least half of proteins measured)
-test.tmt.global75 <- tmt$global[ , which(colMeans(!is.na(tmt$global)) >= 0.75)] # no samples removed (all samples had at least 3/4 of proteins measured)
-test.tmt.global80 <- tmt$global[ , which(colMeans(!is.na(tmt$global)) >= 0.80)] # 1 sample removed (requiring at least 4/5 of proteins measured)
-test.tmt.global90 <- tmt$global[ , which(colMeans(!is.na(tmt$global)) >= 0.90)] # 1 sample removed (requiring at least 9/10 of proteins measured)
-tmt80 <- list("meta" = tmt$meta[tmt$meta$id %in% colnames(test.tmt.global80), ],
-              "global" = test.tmt.global80)
-tmt90 <- list("meta" = tmt$meta[tmt$meta$id %in% colnames(test.tmt.global90), ],
-              "global" = test.tmt.global90)
+# test.tmt.global <- tmt$global[ , which(colMeans(!is.na(tmt$global)) >= 0.5)] # no samples removed (all samples had at least half of proteins measured)
+# test.tmt.global75 <- tmt$global[ , which(colMeans(!is.na(tmt$global)) >= 0.75)] # no samples removed (all samples had at least 3/4 of proteins measured)
+# test.tmt.global80 <- tmt$global[ , which(colMeans(!is.na(tmt$global)) >= 0.80)] # 1 sample removed (requiring at least 4/5 of proteins measured)
+# test.tmt.global90 <- tmt$global[ , which(colMeans(!is.na(tmt$global)) >= 0.90)] # 1 sample removed (requiring at least 9/10 of proteins measured)
+# tmt80 <- list("meta" = tmt$meta[tmt$meta$id %in% colnames(test.tmt.global80), ],
+#               "global" = test.tmt.global80)
+# tmt90 <- list("meta" = tmt$meta[tmt$meta$id %in% colnames(test.tmt.global90), ],
+#               "global" = test.tmt.global90)
 
 ### DIA
 meta.df <- readxl::read_excel("Exp24metadataTable_DIA.xlsx") 
@@ -135,49 +135,100 @@ meta.df$Flow <- FALSE
 meta.df[grepl("Flow", meta.df$`sample type`),]$Flow <- TRUE
 
 synapser::synLogin()
-#globalFile <- synapser::synGet("syn55233852")
-globalFile <- synapser::synGet("syn55271973")
+#globalFile <- synapser::synGet("syn55233852") # Samantha's processed version
+#globalFile <- synapser::synGet("syn55271973") # Camilo's processed version
+globalFile <- synapser::synGet("syn55234888") # Samantha's unprocessed version
 global.df <- read.table(
   globalFile$path, 
-  sep = "\t")
+  sep = "\t") # 8897 proteins, 48 samples
+
+# require proteins to be quantified in at least half of samples
+global.df <- global.df[which(rowSums(is.na(global.df)) < ncol(global.df)/2),] # 6115 proteins, 48 samples
 
 # require samples to have at least 50% of proteins quantified
-global.df <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.5)] # 42 out of 48 samples are kept
+global.df <- global.df[ , which(colSums(is.na(global.df)) < nrow(global.df)/2)] # 42 out of 48 samples are kept
 global.df75 <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.75)] # 36 out of 48 samples are kept
-global.df80 <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.80)] # 34 out of 48 samples are kept
-global.df90 <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.90)] # 28 out of 48 samples are kept
-global.df100 <- global.df[ , which(colMeans(!is.na(global.df)) >= 1)] # 0 out of 48 samples are kept
+# global.df80 <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.80)] # 34 out of 48 samples are kept
+# global.df90 <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.90)] # 28 out of 48 samples are kept
+# global.df100 <- global.df[ , which(colMeans(!is.na(global.df)) >= 1)] # 0 out of 48 samples are kept
+
+# log2-transform DIA data
+global.df <- log(global.df, 2)
+
+global.df75 <- log(global.df75[,colnames(global.df75)!="Gene"],2)
+
+# subtract row (protein) medians
+global_row_medians <- apply(global.df, 1, median, na.rm = T)
+global.df <- sweep(global.df, 1, global_row_medians, FUN = '-')
+
+global_row_medians75 <- apply(global.df75, 1, median, na.rm = T)
+global.df75 <- sweep(global.df75, 1, global_row_medians75, FUN = '-')
+
+# subtract column (sample) medians
+global_sample_coef <- apply(global.df, 2, median, na.rm = T)
+global.df <- sweep(global.df, 2, global_sample_coef, FUN = '-')
+
+global_sample_coef75 <- apply(global.df75, 2, median, na.rm = T)
+global.df75 <- sweep(global.df75, 2, global_sample_coef75, FUN = '-')
+
+# check PCA
+library(MSnSet.utils)
+library(ggplot2)
+rownames(meta.df) <- meta.df$id
+meta.df$`Pooled Sample Type` <- meta.df$`sample type`
+meta.df[meta.df$`sample type` == "CD14+ Flow",]$`Pooled Sample Type` <- "CD14+"
+meta.df[meta.df$`sample type` == "CD34+ Flow",]$`Pooled Sample Type` <- "CD34+"
+meta.df[meta.df$`sample type` == "MSC Flow",]$`Pooled Sample Type` <- "MSC"
+m_global <- MSnSet(exprs = global.df %>% as.matrix(), 
+                   pData = meta.df[colnames(global.df), ])
+phenos <- c("id", "patient", "sample type", "Pooled Sample Type", "Aza", "Ven", "Aza.Ven")
+for (i in 1:length(phenos)) {
+  plot_pca(m_global, phenotype = phenos[i]) + ggtitle("Global PCA") # uses 1917 complete rows (proteins) out of 6115
+  ggsave(paste0("exp24_DIA_global_PCA_by_", phenos[i], ".pdf"))
+}
+m_global <- MSnSet(exprs = global.df75 %>% as.matrix(), 
+                   pData = meta.df[colnames(global.df75), ])
+phenos <- c("id", "patient", "sample type", "Pooled Sample Type", "Aza", "Ven", "Aza.Ven")
+for (i in 1:length(phenos)) {
+  plot_pca(m_global, phenotype = phenos[i]) + ggtitle("Global PCA") # uses 1917 complete rows (proteins) out of 6115
+  ggsave(paste0("exp24_DIA_75percentCoverage_global_PCA_by_", phenos[i], ".pdf")) #3018 complete rows
+}
 
 # add column for feature names and later make it the first column
+global.df$Gene <- rownames(global.df) # 6092 gene symbols
 global.df75$Gene <- rownames(global.df75) # 6092 gene symbols
-global.df80$Gene <- rownames(global.df80) # 6092 gene symbols
-global.df90$Gene <- rownames(global.df90) # 6092 gene symbols
-
+# global.df80$Gene <- rownames(global.df80) # 6092 gene symbols
+# global.df90$Gene <- rownames(global.df90) # 6092 gene symbols
+write.csv(global.df, "Exp24_DIA_crosstab_global_gene_corrected.csv", row.names = FALSE)
+write.csv(global.df75, "Exp24_DIA_75PercentCoverage_crosstab_global_gene_corrected.csv", row.names = FALSE)
 dia <- list("meta" = meta.df[meta.df$id %in% colnames(global.df), ],
             "global" = global.df)
 dia75 <- list("meta" = meta.df[meta.df$id %in% colnames(global.df75), ],
             "global" = global.df75)
-dia80 <- list("meta" = dia$meta[dia$meta$id %in% colnames(global.df80), ],
-              "global" = global.df80)
-dia90 <- list("meta" = dia$meta[dia$meta$id %in% colnames(global.df90), ],
-              "global" = global.df90)
-
+# dia80 <- list("meta" = dia$meta[dia$meta$id %in% colnames(global.df80), ],
+#               "global" = global.df80)
+# dia90 <- list("meta" = dia$meta[dia$meta$id %in% colnames(global.df90), ],
+#               "global" = global.df90)
+synfile <- synapser::File("Exp24_DIA_crosstab_global_gene_corrected.csv", "syn54821995")
+synapser::synStore(synfile)
 #dia.wo.outliers <- list("meta" = )
 ### combine DIA & TMT
+dia$meta$method <- "DIA"
 dia75$meta$method <- "DIA"
-dia80$meta$method <- "DIA"
-dia90$meta$method <- "DIA"
-tmt80$meta$method <- "TMT"
-tmt90$meta$method <- "TMT"
+# dia80$meta$method <- "DIA"
+# dia90$meta$method <- "DIA"
+# tmt80$meta$method <- "TMT"
+# tmt90$meta$method <- "TMT"
 tmt$meta$method <- "TMT"
 
 # make sure dia & tmt meta data have same columns
-tmt$meta[, colnames(tmt$meta)[!(colnames(tmt$meta) %in% colnames(dia75$meta))]] <- NULL
+dia$meta[, colnames(dia$meta)[!(colnames(dia$meta) %in% colnames(tmt$meta))]] <- NULL
+tmt$meta[, colnames(tmt$meta)[!(colnames(tmt$meta) %in% colnames(dia$meta))]] <- NULL
 dia75$meta[, colnames(dia75$meta)[!(colnames(dia75$meta) %in% colnames(tmt$meta))]] <- NULL
-tmt80$meta[, colnames(tmt80$meta)[!(colnames(tmt80$meta) %in% colnames(dia80$meta))]] <- NULL
-dia80$meta[, colnames(dia80$meta)[!(colnames(dia80$meta) %in% colnames(tmt80$meta))]] <- NULL
-tmt90$meta[, colnames(tmt90$meta)[!(colnames(tmt90$meta) %in% colnames(dia90$meta))]] <- NULL
-dia90$meta[, colnames(dia90$meta)[!(colnames(dia90$meta) %in% colnames(tmt90$meta))]] <- NULL
+# tmt80$meta[, colnames(tmt80$meta)[!(colnames(tmt80$meta) %in% colnames(dia80$meta))]] <- NULL
+# dia80$meta[, colnames(dia80$meta)[!(colnames(dia80$meta) %in% colnames(tmt80$meta))]] <- NULL
+# tmt90$meta[, colnames(tmt90$meta)[!(colnames(tmt90$meta) %in% colnames(dia90$meta))]] <- NULL
+# dia90$meta[, colnames(dia90$meta)[!(colnames(dia90$meta) %in% colnames(tmt90$meta))]] <- NULL
 
 dia.tmt <- list("meta" = rbind(dia$meta, tmt$meta),
                 "global" = merge(dia$global, tmt$global, all = TRUE, 
@@ -187,12 +238,12 @@ dia.tmt75 <- list("meta" = rbind(dia75$meta, tmt$meta),
                 "global" = merge(dia75$global, tmt$global, all = TRUE, 
                                  suffixes = c("_DIA", "_TMT")),
                 "phospho" = tmt$phospho)
-dia.tmt80 <- list("meta" = rbind(dia80$meta, tmt80$meta),
-                  "global" = merge(dia80$global, tmt80$global, all = TRUE, 
-                                   suffixes = c("_DIA", "_TMT")))
-dia.tmt90 <- list("meta" = rbind(dia90$meta, tmt90$meta),
-                  "global" = merge(dia90$global, tmt90$global, all = TRUE, 
-                                   suffixes = c("_DIA", "_TMT")))
+# dia.tmt80 <- list("meta" = rbind(dia80$meta, tmt80$meta),
+#                   "global" = merge(dia80$global, tmt80$global, all = TRUE, 
+#                                    suffixes = c("_DIA", "_TMT")))
+# dia.tmt90 <- list("meta" = rbind(dia90$meta, tmt90$meta),
+#                   "global" = merge(dia90$global, tmt90$global, all = TRUE, 
+#                                    suffixes = c("_DIA", "_TMT")))
 # don't need to change IDs because they were distinct for DIA & TMT
 # # add _DIA and _TMT to end of ids
 # dia.tmt$method$id <- paste0(dia.tmt$method$id, "_", dia.tmt$method$method)
@@ -234,18 +285,19 @@ base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/
 synapse_id <- "syn53606820"
 ## run contrasts without filters
 contrasts <- colnames(dia.tmt$meta)[10:(ncol(dia.tmt$meta)-1)]
-method.data <- list("DIA" = dia,
+contrasts <- c("Flow", contrasts[contrasts != "Flow"])
+method.data <- list("DIA" = dia75,
                 "TMT" = tmt,
-                "DIA_&_TMT" = dia.tmt)
-method.data <- list("DIA_75_Percent_Coverage" = dia75,
-                    "TMT_75_Percent_Coverage" = tmt,
-                    "DIA_&_TMT_75_Percent_Coverage" = dia.tmt75)
-method.data <- list("DIA_75_Percent_Coverage" = dia75,
-                    "TMT_75_Percent_Coverage" = tmt,
-                    "DIA_&_TMT_75_Percent_Coverage" = dia.tmt75)
-method.data <- list("DIA_80_Percent_Coverage" = dia80,
-                    "TMT_80_Percent_Coverage" = tmt80,
-                    "DIA_&_TMT_80_Percent_Coverage" = dia.tmt80)
+                "DIA_&_TMT" = dia.tmt75)
+# method.data <- list("DIA_75_Percent_Coverage" = dia75,
+#                     "TMT_75_Percent_Coverage" = tmt,
+#                     "DIA_&_TMT_75_Percent_Coverage" = dia.tmt75)
+# method.data <- list("DIA_75_Percent_Coverage" = dia75,
+#                     "TMT_75_Percent_Coverage" = tmt,
+#                     "DIA_&_TMT_75_Percent_Coverage" = dia.tmt75)
+# method.data <- list("DIA_80_Percent_Coverage" = dia80,
+#                     "TMT_80_Percent_Coverage" = tmt80,
+#                     "DIA_&_TMT_80_Percent_Coverage" = dia.tmt80)
 all.degs <- data.frame()
 
 # look at histograms and PCA first
@@ -292,6 +344,7 @@ for (k in 1:length(method.data)) {
     }
   }
 }
+# 1917 complete rows for DIA, 3975 complete rows for TMT
 # for DIA_&_TMT PCAs:
 # Error in `featureNames<-`(`*tmp*`, value = featureNames(featureData)) : 
 #   'value' length (0) must equal feature number in AssayData (6609)
@@ -310,18 +363,18 @@ for (k in 1:length(method.data)) {
   # run TF contrast combos
   if (grepl("DIA", names(method.data)[k])) {
     omics <- list("global" = method.data[[k]]$global)
-    run_TF_contrast_combos_global_human(contrasts, "id", meta.df, omics,
-                                                base.path = base.path,
-                                        temp.path = method.path, 
-                                                synapse_id = methodFolder)
+    feature.names <- "Gene"
   } else {
     omics <- list("global" = method.data[[k]]$global,
                   "phospho" = method.data[[k]]$phospho)
-    run_TF_contrast_combos_global_phospho_human(contrasts, "id", meta.df, omics,
-                                                base.path = base.path,
-                                                temp.path = method.path, 
-                                                synapse_id = methodFolder) 
+    feature.names <- c("Gene", "SUB_SITE")
   }
+  run_contrast_combos(contrasts, id.type = "id", meta.df = meta.df, 
+                      omics = omics, types = names(omics),
+                      feature.names = feature.names,
+                      base.path = base.path,
+                      temp.path = method.path,
+                      synapse_id = methodFolder)
   
   # get compiled DEGs
   methodDEGs <- as.list(synapser::synGetChildren(methodFolder, list("file"), sortBy = 'NAME'))
@@ -376,6 +429,16 @@ markers <- unique(c("CD73", "CD90", "CD105", "CD106", "CD146", "STRO-1", "CD14",
 markers <- unique(c("NT5E", "THY1", "ENG", "VCAM1", "MCAM", "CD14", "CD34", 
                     "PTPRC", "CD4", "ITGAX", "ITGAX", "FCGR1A", "CD38", "IL3RA", 
                     "HAVCR2", "IL2RA", "ISG20", "FCGR2A", "FCGR2B", "CD96"))
+markers.from.Anupriya <- c("CD3", "HLA-DR", "CD1A", "CD4", "CD5", "ITGAL", 
+                           "ITGAM", "CD14", "FUT4", "ITGB2", "CD19", "IL2RA",
+                           "ISG20", "CD38", "NCAM1", "SELE", "SELP", "IL3RA",
+                           "CDH5", "FASLG", "CD9", "ITGB1", "CD44", "CD46",
+                           "CD47", "ITGA1", "ITGA2", "ITGA5", "CD58", "CD59",
+                           "ITGB3", "CD63", "NT5E", "CD81", "THY1", "SLC3A2",
+                           "SLC7A5", "BSG", "CD151", "CD200", "HLA-A", "HLA-B",
+                           "HLA-C", "ITGA3", "ITGAV", "FAS", "ENG", "CD13", 
+                           "ANPEP", "CD33")
+all.markers <- unique(c(markers, markers.from.Anupriya))
 dia.tmt.markers <- dia.tmt75$global[dia.tmt75$global$Gene %in% markers,
                                   c("Gene", colnames(dia.tmt75$global)[colnames(dia.tmt75$global) != "Gene"])]
 dia.tmt.markers <- dia.tmt80$global[dia.tmt80$global$Gene %in% markers,
@@ -384,6 +447,9 @@ write.csv(dia.tmt.markers, "Cell_markers_global_DIA_TMT_80percentCoverage_2024-0
 dia.tmt.markers <- dia.tmt90$global[dia.tmt90$global$Gene %in% markers,
                                     c("Gene", colnames(dia.tmt90$global)[colnames(dia.tmt90$global) != "Gene"])]
 write.csv(dia.tmt.markers, "Cell_markers_global_DIA_TMT_90percentCoverage_2024-04-17.csv", row.names = FALSE)
+dia.tmt.markers <- dia.tmt$global[dia.tmt$global$Gene %in% markers,
+                                    c("Gene", colnames(dia.tmt$global)[colnames(dia.tmt$global) != "Gene"])]
+write.csv(dia.tmt.markers, paste0("Cell_markers_global_DIA_TMT_", Sys.Date(), ".csv"), row.names = FALSE)
 
 ### violin plots of CD14, CD34
 library(ggplot2)
@@ -410,6 +476,10 @@ long.global <- reshape2::melt(dia.tmt80$global, variable.name = "id")
 long.global <- merge(long.global, dia.tmt80$meta, by = "id")
 long.global <- reshape2::melt(dia.tmt90$global, variable.name = "id")
 long.global <- merge(long.global, dia.tmt90$meta, by = "id")
+
+long.global <- reshape2::melt(dia.tmt$global, variable.name = "id")
+long.global <- merge(long.global, dia.tmt$meta, by = "id")
+
 long.global$Pooled <- NA
 long.global[long.global$Pooled_CD14_Pos,]$Pooled <- "CD14+"
 long.global[long.global$Pooled_CD34_Pos,]$Pooled <- "CD34+"
@@ -425,6 +495,8 @@ long.global[long.global$MSC_Flow,]$SampleType <- "MSC Flow"
 # for CD34: X01184_CD14plusFlow and X00251_CD14plusFlow are unusually high
 
 #long.global.markers <- reshape2::melt(dia.tmt.markers)
+dir.create("markers")
+setwd("markers")
 for (i in 1:length(markers)) {
   marker.df <- long.global[long.global$Gene == markers[i],]
   if (nrow(marker.df) > 0) {
@@ -433,13 +505,13 @@ for (i in 1:length(markers)) {
       geom_violin(position=position_dodge(width=0.4), alpha=0.5) + 
       geom_boxplot(width=0.1, position = position_dodge(width=0.4), alpha=0.5) + 
       bg.theme3 + xlab("Sample Type") + ylab("Normalized Protein Expression")
-    ggsave(paste0(markers[i],"_by_pooled_sample_type_90percentCoverage_", Sys.Date(), ".pdf"), marker.violin)
+    ggsave(paste0(markers[i],"_50PercentCoverage_by_pooled_sample_type_", Sys.Date(), ".pdf"), marker.violin)
     marker.violin <- ggplot2::ggplot(marker.df, 
                                      aes(fill = method, x=SampleType, y=value)) + 
       geom_violin(position=position_dodge(width=0.4), alpha=0.5) + 
       geom_boxplot(width=0.1, position = position_dodge(width=0.4), alpha=0.5) + 
       bg.theme3 + xlab("Sample Type") + ylab("Normalized Protein Expression")
-    ggsave(paste0(markers[i],"_by_sample_type_90percentCoverage_", Sys.Date(), ".pdf"), marker.violin)
+    ggsave(paste0(markers[i],"_50PercentCoverage_by_sample_type_", Sys.Date(), ".pdf"), marker.violin)
   }
 }
 # source: https://www.novusbio.com/research-areas/stem-cells/mesenchymal-stem-cell-markers#:~:text=Sets%20of%20cell%20surface%20markers,%2C%20CD79a%20and%20HLA%2DDR.
