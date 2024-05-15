@@ -1,4 +1,5 @@
-mDEG <- function(data.list, factor.info, p = 0.05, 
+mDEG <- function(data.list, factor.info,
+                 feature.names = rep("Gene", length(data.list)), p = 0.05, 
                  FDR.features = 0.05, n.dot.features = 10) {
   #### Step 1. Check if formats are correct ####
   # check that there are as many types as data.list inputs
@@ -11,6 +12,17 @@ mDEG <- function(data.list, factor.info, p = 0.05,
   if (length(levels(factor.info[,1])) != 2) {
     stop("Exactly 2 levels are required for the first column of factor.info")
   } else {
+    # use parallel computing if possible
+    if (requireNamespace("parallel") &
+        requireNamespace("snow") &
+        requireNamespace("doSNOW")) {
+      cores <- parallel::detectCores() # number of cores available
+      if (cores[1] > 1) {
+        cl <- snow::makeCluster(cores[1] - 1) # cluster using all but 1 core
+        doSNOW::registerDoSNOW(cl) # register cluster
+      }
+    }
+    
     deg <- list()
     for (i in 1:length(types)) {
       # make sure there are no duplicated feature names
@@ -52,7 +64,7 @@ mDEG <- function(data.list, factor.info, p = 0.05,
           design <- stats::model.matrix(~ group + 0, eset)
           colnames(design) <- substr(colnames(design), 6, nchar(colnames(design)))
         }
-
+        
         # fit linear model
         fit <- limma::lmFit(eset, design)
 
@@ -67,6 +79,7 @@ mDEG <- function(data.list, factor.info, p = 0.05,
           adjust = "fdr",
           number = nrow(fit)
         )
+        
         deg[[types[i]]][, feature.names[i]] <- rownames(deg[[types[i]]])
         colnames(deg[[types[i]]])[1] <- "Log2FC"
         deg[[types[i]]] <-
@@ -81,12 +94,27 @@ mDEG <- function(data.list, factor.info, p = 0.05,
       }
     }
     
-    # compile DEG results across omics types
-    if (length(types) > 1) {
+    # compile DEG results across omics types if less than all of them are phospho
+    if (any(grepl("phospho", names(deg), ignore.case = TRUE))) {
+      compileDEGs <- all(grepl("phospho", names(deg), ignore.case = TRUE))
+    } else {
+      compileDEGs <- TRUE
+    }
+    if (length(types) > 1 & compileDEGs) {
       compiled.DEGs <- panSEA::compile_mDEG(deg, p, FDR.features, 
                                             n.dot.features)
     } else {
       compiled.DEGs <- NA
+    }
+    
+    # stop cluster if relevant
+    if (requireNamespace("parallel") &
+        requireNamespace("snow") &
+        requireNamespace("doSNOW")) {
+      if (cores[1] > 1) {
+        snow::stopCluster(cl) # stop cluster
+        rm(cl)
+      }
     }
 
   return(list(compiled.results = compiled.DEGs, all.results = deg
