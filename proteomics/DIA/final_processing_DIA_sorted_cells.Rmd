@@ -2,16 +2,59 @@
 
 
 ```{r}
-library(dplyr)
+#library(dplyr)
 library(MSnSet.utils)
 library(msigdbr)
 library(ggupset)
 library(ComplexUpset)
 library(stringr)
-library(ggplot2)
+#library(ggplot2)
 library(VennDiagram)
+library(tidyverse)
 
 source("../../../Github/camilo_helper/helper_scripts.R")
+
+
+# SamO crosstab creation and contaminant removal post DIA-NN
+
+  #protein level data taken from DIA-NN pg matrix output. see log file for parameter information
+  DIA_august<-read_tsv("PTRC_wrkpckg5469_august_report.pg_matrix.tsv")
+  
+  
+  #remove contaminants
+  DIA_august<-DIA_august %>% filter(!str_detect(Protein.Ids,"Contaminant|contaminant"))
+  
+  
+  #protein level crosstab for Camilo handoff
+  crosstab_format<-function(c_pro){
+    
+    #abundance columns
+    abund_cols<-colnames(c_pro[grep("mzML",names(c_pro))])
+    
+    #sample info
+    sinfo<-data.frame(sampleID=colnames(c_pro[abund_cols]))
+    sinfo$new_sampleID<-gsub("D.*DIA_[0-9]{2}-|_[0-9]{2}_FAIMS.*","",sinfo$sampleID)
+    
+    #intensity
+    edata<-c_pro %>% select(Protein.Group,abund_cols) %>% pivot_longer(cols=abund_cols,values_to="intensity",names_to="sampleID") %>% 
+      #combine with shortened names above (takes less time then str_extract)
+      left_join(sinfo,by="sampleID") %>% select(-sampleID) %>% pivot_wider(names_from=new_sampleID,values_from=intensity)
+    
+    #protein aggregation table
+    crosstab_prot_agg<-data.frame(edata,row.names = "Protein.Group")
+    
+    return(crosstab_prot_agg)
+  }
+  
+  DIA_august<-crosstab_format(DIA_august)
+  
+  
+  # Save cross-tab
+  write.table(DIA_august, file = "crosstab_PTRC_wrkpckg5469_august_DIA_nolib.txt",
+              sep = "\t", quote = FALSE, row.names = TRUE,col.names = TRUE)
+
+
+#CamiloP processing
 
 crosstab_prot <- read.table("crosstab_PTRC_wrkpckg5469_august_DIA_nolib.txt", sep = "\t")
 table(grepl(";", rownames(crosstab_prot)))
