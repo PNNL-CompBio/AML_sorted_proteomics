@@ -8,7 +8,7 @@ library(readxl); library(panSEA); library(synapser)
 library(stringr); library(tidyr); library(dplyr); library(Biobase)
 
 setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-source("panSEA_helper_20240508.R")
+source("panSEA_helper_20240508_updated20241015.R")
 
 # overview
 # 1. Import metadata & crosstabs
@@ -294,8 +294,22 @@ if (file.exists("gmt_BeatAML_drug_MOA.rds")) {
 synapse_id <- "syn63609944"
 all.degs <- data.frame()
 contrasts <- c("CD14", "CD34", "MSC", "Aza", "Ven", "Aza.Ven", "Sort Type")
-BeatAML.data <- load_not_norm_BeatAML_for_DMEA2()
-for (k in 2:length(method.data)) {
+#BeatAML.data <- load_not_norm_BeatAML_for_DMEA2()
+sorted.patients <- c("18-00105", "21-00839", "22-00571", "22-00117", "16-01184",
+                     "19-00074", "18-00103", "21-00432", "17-01060", "22-00251")
+BeatAML.data <- load_not_norm_BeatAML_for_DMEA3(exclude.samples = sorted.patients)
+# gmt1 <- get_gmt1_v2()
+# gmt1[[11]] <- NULL
+# gmt[[13]] <- NULL
+# names(gmt1) <- c("TFT_GTRD", "MIR_MIRDB", "GO_BP", "GO_CC", "GO_MF", 
+#                  "Oncogenic_signatures", "BioCarta", "KEGG", "PID", "Reactome", 
+#                  "Hallmark", "Positional")
+# temp.gmt <- msigdbr::msigdbr(species = "Homo sapiens", category="C2", subcategory="CP:WIKIPATHWAYS")
+# temp.gmt <- DMEA::as_gmt(as.data.frame(temp.gmt), element.names = "gene_symbol", set.names = "gs_name", descriptions = "gs_description")
+# gmt1[["WikiPathways"]] <- temp.gmt
+# gmt1 <- gmt1[c(1:12,14)]
+# saveRDS(gmt1, "gmt1_more.rds")
+for (k in 1:length(method.data)) {
   setwd(base.path)
   method.path <- file.path(base.path, names(method.data)[k])
   dir.create(names(method.data)[k])
@@ -319,13 +333,24 @@ for (k in 2:length(method.data)) {
     temp.expr <- list(BeatAML.data$global, BeatAML.data$phospho)
   }
   names(temp.expr) <- names(omics)
-  panSEA2_combos(contrasts, meta.df = meta.df, 
+  panSEA2_combos2(contrasts, meta.df = meta.df, 
                       omics = omics,
                       expr = temp.expr,
                       gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
                       base.path = base.path,
                       temp.path = method.path,
-                      synapse_id = methodFolder)
+                      synapse_id = methodFolder, timeout = 60)
+  
+  contasts_afterMSC <- c("Aza", "Ven", "Aza.Ven", "Sort Type")
+  contasts_afterMSC <- c("Ven", "Aza.Ven")
+  panSEA2_combos2(contrasts, meta.df = meta.df, 
+                  omics = omics,
+                  expr = temp.expr,
+                  gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
+                  base.path = base.path,
+                  temp.path = method.path,
+                  synapse_id = methodFolder, 
+                  filters = contrasts_afterMSC, timeout = 60)
   
   # get compiled DEGs
   methodDEGs <- as.list(synapser::synGetChildren(methodFolder, list("file"), sortBy = 'NAME'))
@@ -687,6 +712,7 @@ markers.from.Anupriya <- c("CD3", "HLA-DR", "CD1A", "CD4", "CD5", "ITGAL",
                            "SLC7A5", "BSG", "CD151", "CD200", "HLA-A", "HLA-B",
                            "HLA-C", "ITGA3", "ITGAV", "FAS", "ENG", "CD13", 
                            "ANPEP", "CD33")
+markers.from.Anupriya <- c(markers.from.Anupriya, c("CD31", "PECAM1", "CD90", "THY1", "CD105", "ENG"))
 all.markers <- unique(c(markers, markers.from.Anupriya))
 dia.tmt.markers <- dia.tmt.wo.out$global[dia.tmt.wo.out$global$Gene %in% markers,
                                     c("Gene", colnames(dia.tmt.wo.out$global)[colnames(dia.tmt.wo.out$global) != "Gene"])]
