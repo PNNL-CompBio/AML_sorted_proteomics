@@ -16,6 +16,11 @@ library(readxl)
 setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/")
 global_crosstab <- read.table("proteomics/data/global_data/Exp24_crosstab_global_gene_original.txt")
 phospho_crosstab <- read.table("proteomics/data/phospho_data/Exp24_crosstab_phospho_siteID_original.txt")
+phospho_crosstab_pep <- read.table("proteomics/data/phospho_data/Exp24_crosstab_phospho_peptide_original.txt", fill = TRUE, header = FALSE)
+phospho_crosstab_pep <- phospho_crosstab_pep[2:nrow(phospho_crosstab_pep),]
+# rownames(phospho_crosstab_pep) <- phospho_crosstab_pep[,1] # can't put peptide names in rownames because hashtags are lost
+peptide.labels <- phospho_crosstab_pep[,1] # storing to reinstate at end
+phospho_crosstab_pep <- phospho_crosstab_pep[,2:ncol(phospho_crosstab_pep)]
 phospho_crosstab_prot <- read.table("proteomics/data/phospho_data/Exp24_crosstab_phospho_siteID_prot_original.txt", sep = "\t")
 
 meta <- read_excel("proteomics/data/Exp24metadataTable_TMT.xlsx") 
@@ -32,7 +37,7 @@ rownames(meta) <- meta$MeasurementName
 meta <- meta[meta$Tube != "EMPTY", ]
 
 # add other drug info & make sure sensitivity is correctly labeled
-sens.info <- read.csv("data/Exp24_drug_sensitivity_20240209.csv")
+sens.info <- read.csv("proteomics/data/Exp24_drug_sensitivity_20240209.csv")
 meta <- merge(meta, sens.info)
 meta$X <- NULL
 rownames(meta) <- meta$MeasurementName
@@ -42,11 +47,31 @@ meta[meta$SampleType == "CD34+ Flow",]$Pooled <- "CD34+"
 
 colnames(global_crosstab) <- sub("^X", "", colnames(global_crosstab))
 colnames(phospho_crosstab) <- sub("^X", "", colnames(phospho_crosstab))
+colnames(phospho_crosstab_pep) <- colnames(phospho_crosstab) # because headers were not read to avoid import error from 'duplicate rownames' due to loss of hashtags in peptides
 colnames(phospho_crosstab_prot) <- sub("^data.", "", colnames(phospho_crosstab_prot))
 
 ## data only
 phospho_prot_mat <- phospho_crosstab_prot[, intersect(as.character(1:ncol(phospho_crosstab_prot)), colnames(phospho_crosstab_prot))]
 
+# also save as CSVs with more descriptive sample names
+meta2 <- read_excel("proteomics/data/Exp24metadataTable_TMT.xlsx")
+og_global_crosstab <- global_crosstab
+sampleIDs <- meta2$DIA_id[as.numeric(colnames(og_global_crosstab))]
+colnames(og_global_crosstab) <- sampleIDs
+write.csv(og_global_crosstab, 
+            file = "proteomics/data/global_data/Exp24_crosstab_global_gene_original_sampleIDs.csv")
+
+og_phospho_crosstab <- phospho_crosstab
+sampleIDs <- meta2$DIA_id[as.numeric(colnames(og_phospho_crosstab))]
+colnames(og_phospho_crosstab) <- sampleIDs
+write.csv(og_phospho_crosstab, 
+            file = "proteomics/data/phospho_data/Exp24_crosstab_phospho_SiteID_original_sampleIDs.csv")
+
+og_phospho_crosstab_pep <- phospho_crosstab_pep
+sampleIDs <- meta2$DIA_id[as.numeric(colnames(og_phospho_crosstab_pep))]
+colnames(og_phospho_crosstab_pep) <- sampleIDs
+write.csv(og_phospho_crosstab_pep, 
+            file = "proteomics/data/phospho_data/Exp24_crosstab_phospho_peptide_original_sampleIDs.csv", row.names = peptide.labels)
 
 ```
 
@@ -73,15 +98,18 @@ Missing data
 ```{r}
 global_missing <- rowSums(is.na(global_crosstab))
 phospho_missing <- rowSums(is.na(phospho_crosstab))
+phospho_missing_pep <- rowSums(is.na(phospho_crosstab_pep))
 phospho_prot_missing <- rowSums(is.na(phospho_prot_mat))
 
 hist(global_missing)
 hist(phospho_missing)
+hist(phospho_missing_pep)
 hist(phospho_prot_missing)
 
 ## 50 % missingness filter, lose 178 global features and 27205 phosphosites
 global_crosstab <- global_crosstab[global_missing < ncol(global_crosstab)/2, ]
 phospho_crosstab <- phospho_crosstab[phospho_missing < ncol(phospho_crosstab)/2, ]
+phospho_crosstab_pep <- phospho_crosstab_pep[phospho_missing_pep < ncol(phospho_crosstab_pep)/2, ]
 phospho_prot_mat <- phospho_prot_mat[phospho_prot_missing < ncol(phospho_crosstab)/2, ]
 
 ```
@@ -94,14 +122,17 @@ Raw data stats.
 ## row medians
 hist(apply(global_crosstab, 1, median, na.rm = T))
 hist(apply(phospho_crosstab, 1, median, na.rm = T))
+hist(apply(phospho_crosstab_pep, 1, median, na.rm = T))
 hist(apply(phospho_prot_mat, 1, median, na.rm = T))
 
 global_row_medians <- apply(global_crosstab, 1, median, na.rm = T)
 phospho_row_medians <- apply(phospho_crosstab, 1, median, na.rm = T)
+phospho_row_medians_pep <- apply(phospho_crosstab_pep, 1, median, na.rm = T)
 phospho_prot_row_medians <- apply(phospho_prot_mat, 1, median, na.rm = T)
 
 global_crosstab <- sweep(global_crosstab, 1, global_row_medians, FUN = '-')
 phospho_crosstab <- sweep(phospho_crosstab, 1, phospho_row_medians, FUN = '-')
+phospho_crosstab_pep <- sweep(phospho_crosstab_pep, 1, phospho_row_medians_pep, FUN = '-')
 phospho_prot_mat <- sweep(phospho_prot_mat, 1, phospho_prot_row_medians, FUN = '-')
 
 ```
@@ -110,11 +141,13 @@ phospho_prot_mat <- sweep(phospho_prot_mat, 1, phospho_prot_row_medians, FUN = '
 
 ```{r}
 table(colnames(global_crosstab) == colnames(phospho_crosstab))
+table(colnames(global_crosstab) == colnames(phospho_crosstab_pep))
 table(colnames(global_crosstab) == colnames(phospho_prot_mat))
 
 ## sample medians
 hist(apply(global_crosstab, 2, median, na.rm = T))
 hist(apply(phospho_crosstab, 2, median, na.rm = T))
+hist(apply(phospho_crosstab_pep, 2, median, na.rm = T))
 hist(apply(phospho_prot_mat, 2, median, na.rm = T))
 
 ## Using global coefficients to normalize phospho.
@@ -122,6 +155,7 @@ global_sample_coef <- apply(global_crosstab, 2, median, na.rm = T)
 
 global_crosstab <- sweep(global_crosstab, 2, global_sample_coef, FUN = '-')
 phospho_crosstab <- sweep(phospho_crosstab, 2, global_sample_coef, FUN = '-')
+phospho_crosstab_pep <- sweep(phospho_crosstab_pep, 2, global_sample_coef, FUN = '-')
 phospho_prot_mat <- sweep(phospho_prot_mat, 2, global_sample_coef, FUN = '-')
 
 ```
@@ -134,6 +168,8 @@ m_global <- MSnSet(exprs = global_crosstab %>% as.matrix(),
 
 m_phospho <- MSnSet(exprs = phospho_crosstab %>% as.matrix(), 
                     pData = meta[colnames(phospho_crosstab), ])
+m_phospho_pep <- MSnSet(exprs = phospho_crosstab_pep %>% as.matrix(), 
+                    pData = meta[colnames(phospho_crosstab_pep), ])
 
 m_phospho_prot <- MSnSet(exprs = phospho_prot_mat %>% as.matrix(), 
                          pData = meta[colnames(phospho_prot_mat), ])
@@ -152,6 +188,8 @@ for (i in 1:length(phenos)) {
   
   plot_pca(m_phospho, phenotype = phenos[i]) + ggtitle("Phospho PCA")
   ggsave(paste0("exp24_phospho_PCA_by_", phenos[i], ".pdf"))
+  plot_pca(m_phospho_pep, phenotype = phenos[i]) + ggtitle("Phospho PCA")
+  ggsave(paste0("exp24_phospho_peptide_PCA_by_", phenos[i], ".pdf"))
   
   plot_pca(m_phospho_prot, phenotype = phenos[i]) + ggtitle("Phospho prot PCA")
   ggsave(paste0("exp24_phospho_prot_PCA_by_", phenos[i], ".pdf"))
@@ -165,11 +203,13 @@ for (i in 1:length(phenos)) {
 if (length(unique(meta$Plex)) > 1) {
   m_global_corrected <- correct_batch_effect_NA(m_global, "Plex", par.prior = T)
   m_phospho_corrected <- correct_batch_effect_NA(m_phospho, "Plex", par.prior = T)
+  m_phospho_corrected_pep <- correct_batch_effect_NA(m_phospho_pep, "Plex", par.prior = T)
   
   m_phospho_prot_corrected <- correct_batch_effect_NA(m_phospho_prot, "Plex", par.prior = T)
 } else {
   m_global_corrected <- m_global
   m_phospho_corrected <- m_phospho
+  m_phospho_corrected_pep <- m_phospho_pep
   
   m_phospho_prot_corrected <- m_phospho_prot
 }
@@ -185,6 +225,8 @@ for (i in 1:length(phenos)) {
   
   plot_pca(m_phospho_corrected, phenotype = phenos[i]) + ggtitle("Phospho PCA")
   ggsave(paste0("exp24_phospho_corrected_PCA_by_", phenos[i], ".pdf"))
+  plot_pca(m_phospho_corrected_pep, phenotype = phenos[i]) + ggtitle("Phospho PCA")
+  ggsave(paste0("exp24_phospho_peptide_corrected_PCA_by_", phenos[i], ".pdf"))
   
   plot_pca(m_phospho_prot_corrected, phenotype = phenos[i]) + ggtitle("Phospho prot PCA")
   ggsave(paste0("exp24_phospho_prot_corrected_PCA_by_", phenos[i], ".pdf"))
@@ -203,6 +245,33 @@ write.table(exprs(m_phospho_corrected),
             file = "data/phospho_data/Exp24_crosstab_phospho_SiteID_corrected.txt",
             quote=F, sep="\t")
 
+# replace peptide labels
+pep_crosstab_corrected <- exprs(m_phospho_corrected_pep)
+keptPeptides <- peptide.labels[as.numeric(rownames(pep_crosstab_corrected))]
+rownames(pep_crosstab_corrected) <- keptPeptides
+write.table(pep_crosstab_corrected, 
+            file = "data/phospho_data/Exp24_crosstab_phospho_peptide_corrected.txt",
+            quote=F, sep="\t")
+
+# also save as CSVs with more descriptive sample names
+meta2 <- read_excel("data/Exp24metadataTable_TMT.xlsx")
+final_global_crosstab <- exprs(m_global_corrected)
+sampleIDs <- meta2$DIA_id[as.numeric(colnames(final_global_crosstab))]
+colnames(final_global_crosstab) <- sampleIDs
+write.csv(final_global_crosstab, 
+            file = "data/global_data/Exp24_crosstab_global_gene_corrected_sampleIDs.csv")
+
+final_phospho_crosstab <- exprs(m_phospho_corrected)
+sampleIDs <- meta2$DIA_id[as.numeric(colnames(final_phospho_crosstab))]
+colnames(final_phospho_crosstab) <- sampleIDs
+write.csv(final_phospho_crosstab, 
+            file = "data/phospho_data/Exp24_crosstab_phospho_SiteID_corrected_sampleIDs.csv")
+
+final_phospho_crosstab_pep <- pep_crosstab_corrected
+sampleIDs <- meta2$DIA_id[as.numeric(colnames(final_phospho_crosstab_pep))]
+colnames(final_phospho_crosstab_pep) <- sampleIDs
+write.csv(final_phospho_crosstab_pep, 
+            file = "data/phospho_data/Exp24_crosstab_phospho_peptide_corrected_sampleIDs.csv")
 
 phospho_prot_corrected <- exprs(m_phospho_prot_corrected) %>%
   as.data.frame() %>%
@@ -220,7 +289,6 @@ colnames(phospho_prot_corrected) <- sub("(^[0-9].*$)", "data:\\1", colnames(phos
 write.table(phospho_prot_corrected, 
             file = "data/phospho_data/Exp24_crosstab_phospho_SiteID_prot_corrected.txt",
             sep="\t")
-
 ```
 
 
@@ -232,6 +300,7 @@ if (length(unique(meta$Plex)) > 1) {
   
   plex_global_corrected <- limma_gen(m_global_corrected, "~Plex", "Plex")
   plex_phospho_corrected <- limma_gen(m_phospho_corrected, "~Plex", "Plex")
+  plex_phospho_corrected_pep <- limma_gen(m_phospho_corrected_pep, "~Plex", "Plex")
 }
 
 ```
@@ -246,6 +315,8 @@ if (length(unique(meta$Plex)) > 1) {
   
   hist(plex_phospho$P.Value)
   hist(plex_phospho_corrected$P.Value)
+  hist(plex_phospho_pep$P.Value)
+  hist(plex_phospho_corrected_pep$P.Value)
 }
 ```
 
