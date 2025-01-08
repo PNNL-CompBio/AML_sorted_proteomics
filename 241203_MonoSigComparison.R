@@ -71,6 +71,19 @@ compareSigs <- function(path.list, venn.names = names(path.list),
   write.csv(sig.df, "signature_Log2FC.csv", row.names = FALSE)
   rownames(sig.df) <- sig.df$Gene
   
+  if (length(path.list) == 2) {
+    comparison <- paste0(names(sigs), collapse = "_and_")
+    corr.df <- data.frame(comparison)
+    corr.df[,c("Pearson.est", "Pearson.p", "Spearman.est", "Spearman.p")] <- NA
+    pearson <- stats::cor.test(sig.df[,2], sig.df[,3], method="pearson")
+    corr.df$Pearson.est <- pearson$estimate
+    corr.df$Pearson.p <- pearson$p.value
+    spearman <- stats::cor.test(sig.df[,2], sig.df[,3], method="spearman")
+    corr.df$Spearman.est <- spearman$estimate
+    corr.df$Spearman.p <- spearman$p.value
+    write.csv(corr.df, "correlation_2signatures.csv", row.names = FALSE)
+  }
+  
   # create correlation matrix
   corr.mat <- stats::cor(as.matrix(sig.df[,2:ncol(sig.df)]))
   write.csv(corr.mat, "correlations.csv")
@@ -157,3 +170,21 @@ sig.paths <- list("Sorted" = "analysis/DIA/MSC_Non_MSC/CD14_Pos_vs_Neg/global/Di
                   "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
                   "Lasry" = "data/externalSignatures/formatted/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC.csv")
 compareSigs(sig.paths)
+
+sig.paths <- list("Sorted" = "analysis/DIA_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+                  "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv",
+                  "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
+                  "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv")
+compareSigs(sig.paths, fname = "Monocyte_vs_progenitor_signatures_beadOnly")
+
+#### 3. flow type ####
+# since MSC was only flow sorted, remove MSC from sort type comparisons
+sig.paths <- list("Bead vs. Flow" = "analysis/DIA_noMSC/no_filter/Sort Type_Bead_vs_Flow/Differential_expression/Differential_expression_results.csv",
+                  "CD14 vs. CD34" = "analysis/DIA_noMSC/no_filter/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+                  "Bead: CD14 vs. CD34" = "analysis/DIA_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+                  "Flow: CD14 vs. CD34" = "analysis/DIA_noMSC/Sort Type_Flow/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv")
+compareSigs(sig.paths, fname = "Monocyte_vs_other_signatures_and_bead_vs_flow")
+
+sig.paths <- list("Bead" = "analysis/DIA_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+                  "Flow" = "analysis/DIA_noMSC/Sort Type_Flow/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv")
+compareSigs(sig.paths, fname = "Monocyte_vs_other_signatures_beadOrFlow")
