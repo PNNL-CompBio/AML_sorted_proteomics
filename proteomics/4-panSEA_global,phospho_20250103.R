@@ -647,6 +647,9 @@ all.DEG.files <- list(
                         replaced.degs.noMSC[replaced.degs.noMSC$adj.P.Val <= 0.05, ])
 save_to_synapse(all.DEG.files, methodFolder.noMSC)
 
+setwd("analysis/phosphoPeptide_noMSC/")
+replaced.degs.noMSC <- read.csv("Differential_expression_results_noMSC_replacedPeptideLabels.csv")
+
 # does the diffexp correlate between DIA & TMT?
 temp.degs <- replaced.degs.noMSC[is.na(replaced.degs.noMSC$Filter) &
                                    replaced.degs.noMSC$Contrast == "CD14_Pos_vs_Neg",]
@@ -773,13 +776,130 @@ temp.degs2 <- na.omit(replaced.degs.noMSC[replaced.degs.noMSC$Filter=="Sort Type
 
 temp.degs2 <- na.omit(replaced.degs.noMSC[replaced.degs.noMSC$Filter=="Sort Type_Bead" &
                                     replaced.degs.noMSC$Contrast == "CD14_Pos_vs_Neg",])
-sig.list <- list("DIA" = temp.degs2[temp.degs2$Feature_type=="DIA" & 
-                                     temp.degs2$Filter=="Sort Type_Bead",], 
-                 "TMT" = temp.degs2[temp.degs2$Feature_type=="TMT" & 
-                                     temp.degs2$Filter=="Sort Type_Bead",])
+sig.list <- list("DIA" = temp.degs2[temp.degs2$Feature_type=="DIA",], 
+                 "TMT" = temp.degs2[temp.degs2$Feature_type=="TMT",])
 compareSigs(sig.list, fname = "CD14_vs_CD34_peptide_beadSorted")
 #Error in cor.test.default(sig.df[, 2], sig.df[, 3], method = "pearson") : 
 #  not enough finite observations
+
+# also try MIT kinase enrichment: https://kinase-library.mit.edu/ea?a=ps
+setwd("analysis/phosphoPeptide_noMSC/")
+replaced.degs.noMSC <- read.csv("Differential_expression_results_noMSC_replacedPeptideLabels.csv")
+
+# does the diffexp correlate between DIA & TMT?
+temp.degs <- replaced.degs.noMSC[is.na(replaced.degs.noMSC$Filter) &
+                                   replaced.degs.noMSC$Contrast == "CD14_Pos_vs_Neg",]
+sig.list <- list("DIA" = temp.degs[temp.degs$Feature_type=="DIA",], 
+                 "TMT" = temp.degs[temp.degs$Feature_type=="TMT",])
+temp.degs2 <- na.omit(replaced.degs.noMSC[replaced.degs.noMSC$Filter=="Sort Type_Bead" &
+                                            replaced.degs.noMSC$Contrast == "CD14_Pos_vs_Neg",])
+sig.list2 <- list("DIA" = temp.degs2[temp.degs2$Feature_type=="DIA",], 
+                 "TMT" = temp.degs2[temp.degs2$Feature_type=="TMT",])
+all.sigs <- list("CD14vsCD34" = sig.list,
+                 "CD14vsCD34_beadSorted" = sig.list2)
+for (j in 1:length(all.sigs)) {
+  fname <- names(all.sigs)[j]
+  sig.list <- all.sigs[[j]]
+  for (i in 1:length(sig.list)) {
+    sig.name <- names(sig.list)[i]
+    temp.sig <- sig.list[[i]]
+    
+    # only extract peptide sequence itself for MIT kinase enrichment
+    temp.sig$Feature <- sub(".*@","",temp.sig$Feature)
+    
+    # only keep peptides with asterisk denoting phosphorylation
+    temp.sig <- temp.sig[grepl("[*]",temp.sig$Feature),]
+    
+    foreground <- as.data.frame(temp.sig[temp.sig$adj.P.Val <= 0.05,]$Feature)
+    background <- as.data.frame(temp.sig$Feature) # background needs to include foreground
+    write.table(foreground, paste0(sig.name,"_foreground_peptides_",fname,".txt"), 
+                sep="\t", row.names = FALSE, col.names = FALSE)
+    write.table(background, paste0(sig.name,"_background_peptides_",fname,".txt"), 
+                sep="\t", row.names = FALSE, col.names = FALSE)
+  } 
+}
+# Error with each DIA and TMT:
+# An error occurred during enrichment analysis. Invalid format?
+#   Error message: At least 95% of sites must have at least 5 amino acids before and after phosphorylation site
+
+# try ksdb instead
+# ksdb <- read.csv(paste0("https://raw.githubusercontent.com/PNNL-CompBio/",
+#                         "panSEA/shiny-app/data/ksdb_20231101.csv"))
+# organism <- "human"
+# if (organism %in% unique(na.omit(ksdb$KIN_ORGANISM)) &
+#     organism %in% unique(na.omit(ksdb$SUB_ORGANISM))) {
+#   ksdb <- ksdb[ksdb$KIN_ORGANISM == organism &
+#                  ksdb$SUB_ORGANISM == organism, ]
+# }
+# # looks like the phospho sites are indicated by lower case letters instead of asterisk
+# # need to replace s with S* and so on
+# ksdb$sequence <- ksdb$SITE_...7_AA
+# ksdb$phosphoAA <- stringr::str_extract_all(ksdb$sequence, "[[:lower:]]+")
+# # extract all lowercase letters
+# phosphoAA <- unique(unlist(stringr::str_extract_all(ksdb$sequence, "[[:lower:]]+")))
+# # split up doublets (e.g., ys) and so on into individual letters
+# phosphoAA <- unique(unlist(stringr::str_split(phosphoAA, "")))
+# # replace lowercase letters with matching uppercase letter and asterisk
+# for (i in phosphoAA) {
+#   replacement <- paste0(toupper(i),"*")
+#   ksdb$sequence <- gsub(i,replacement, ksdb$sequence)
+# }
+# ksdb$SUB_SITE_MOD <- paste0(ksdb$SUB_GENE,"@",ksdb$sequence)
+# gmt <- DMEA::as_gmt(ksdb, "SUB_SITE_MOD", "KINASE",
+#                     descriptions = "KIN_ACC_ID")
+# saveRDS(gmt,"gmt_kdsb_human_peptide.rds") # 391 kinases with 6+ substrates
+gmtv2 <- DMEA::as_gmt(ksdb, "SUB_SITE_MOD", "KINASE", descriptions = "KIN_ACC_ID", min.per.set=5)
+saveRDS(gmtv2,"gmt_kdsb_human_peptide_min5perset.rds")
+gmt <- readRDS("gmt_kdsb_human_peptide.rds")
+gmt2 <- list(gmtv2, gmtv2)
+names(gmt2) <- rep("ksdb", 2)
+n.net <- 5
+# base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis"
+# setwd(base.path)
+# highCov.pep.wo.out <- readRDS("Phospho_peptide_DIA_TMT_overlappingSamples_min75PercentCoverage_noGlobalOutliers.rds")
+# cc.df <- highCov.pep.wo.out$meta
+synapse_id <- "syn64501548"
+synapser::synLogin()
+methodFolder.noMSC <- 
+  synapser::synStore(synapser::Folder("phosphoPeptide_noMSC",
+                                      parent = synapse_id))
+library(plyr);library(dplyr)
+all.ksea.files <- list()
+for (j in 2:length(all.sigs)) {
+  fname <- names(all.sigs)[j]
+  sig.list <- all.sigs[[j]]
+  
+  # average over any duplicates
+  for (i in 1:length(sig.list)) {
+    temp.name <- names(sig.list)[i]
+    temp.df <- sig.list[[temp.name]]
+    temp.df <- plyr::ddply(temp.df, .(Feature), summarize,
+                           Log2FC = mean(Log2FC, na.rm = TRUE))
+    sig.list[[temp.name]] <- temp.df
+  }
+  
+  gsea2 <- panSEA::mGSEA(sig.list, gmt2, types=names(sig.list),
+                               feature.names=rep("Feature",2), min.per.set=5)
+  # error: each feature must have only 1 rank.metric value (i.e., Log2FC)
+  ksea.files <- list("KSEA_results_compiled.csv" = gsea2$compiled.results$mean.results,
+                     "KSEA_results.csv" = gsea2$compiled.results$results,
+                     "KSEA_venn_diagram.pdf" = gsea2$compiled.results$venn.diagram,
+                     "KSEA_dot_plot.pdf" = gsea2$compiled.results$dot.plot,
+                     "KSEA_correlations.csv" = gsea2$compiled.results$corr,
+                     "KSEA_correlation_matrix.pdf" = gsea2$compiled.results$corr.matrix)
+  for (i in 1:length(sig.list)) {
+    temp.name <- names(sig.list)[i]
+    PDFname <- paste0("KSEA_volcano_plot_",temp.name,".pdf")
+    ksea.files[[PDFname]] <- gsea2$all.results[[temp.name]]$volcano.plot
+  }
+  all.ksea.files[[fname]] <- ksea.files
+  
+  #saveRDS(gsea2, paste0("KSEA_peptide_",fname,".rds"))
+}
+all.files <- list("KSEA" = all.ksea.files)
+save_to_synapse(all.files, methodFolder.noMSC)
+# error: insufficient coverage (need 2+ kinases with 6+ substrate sites each)
+
 #### 4. Cell type predictions using weighted voting of CD14+ vs. CD34+ ####
 #### CD14 vs CD34: same as MSC_Non_MSC: CD14_Pos_vs_Neg
 #### Weighted voting: can CD14 vs CD34 signature rank data when not normalized across samples?
