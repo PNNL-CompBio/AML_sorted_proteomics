@@ -254,7 +254,7 @@ for (j in toxic) {
   write.csv(percScores, paste0(j,"_Percentile_scores_",Sys.Date(),".csv"), row.names = FALSE)
   write.csv(percScoresInfo, paste0(j, "_Percentile_scores_info_",Sys.Date(),".csv"), row.names = FALSE)
   
-  filtered.percScores <- percScores[percScores$N_analyses >= 3 & ,]
+  filtered.percScores <- percScores[percScores$N_analyses >= 3,]
   if (nrow(filtered.percScores) > 0) {
     filtered.percScores <- filtered.percScores[order(-filtered.percScores$MeanPercTimesN_analyses),]
     targetOrder <- filtered.percScores$Target
@@ -309,11 +309,11 @@ for (j in toxic) {
       coord_flip()
     dot.plot
     saveRDS(dot.plot, paste0(j,"_Target_min3analyses_dotPlot_forHorizontal_",Sys.Date(),".rds"))
-    ggsave(paste0(j,"_Target_min3analyses_dotPlot_forHorizontal_",Sys.Date(),".pdf"),dot.plot,width=10.5, height=2.5)
+    ggsave(paste0(j,"_Target_min3analyses_dotPlot_forHorizontal_",Sys.Date(),".pdf"),dot.plot,width=4, height=2)
     ggsave(paste0(j,"_Target_min3analyses_dotPlot_forHorizontal_wider_",Sys.Date(),".pdf"),dot.plot,width=11, height=4)
   }
 }
-dot.plot.amp <- readRDS(paste0("CD14_Pos","_Target_min3analyses_dotPlot_",Sys.Date(),".rds"))
+dot.plot.amp <- readRDS(paste0("CD14_Pos","_Target_min3analyses_dotPlot_forHorizontal_",Sys.Date(),".rds"))
 dot.plot.amp
-ggsave(paste0("CD14_Pos","_Target_min3analyses_dotPlot_",Sys.Date(),".pdf"),dot.plot,width=11, height=4)
+ggsave(paste0("CD14_Pos","_Target_min3analyses_dotPlot_forHorizontal",Sys.Date(),".pdf"),dot.plot,width=5, height=4)
 ggsave(paste0("CD14_Pos","_Target_min3analyses_dotPlot_v2_",Sys.Date(),".pdf"),dot.plot,width=10.5, height=2.5)
