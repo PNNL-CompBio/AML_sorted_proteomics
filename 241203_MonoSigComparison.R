@@ -16,7 +16,10 @@ setwd(base.path)
 # for Triana, there was no P.Value, so I set P.Value = adj.P.Val
 compareSigs <- function(path.list, venn.names = names(path.list), 
                         fname = "Monocyte_vs_progenitor_signatures",
-                        relevant.genes = c("BCL2", "MAPK14", "CD14", "CD34")) {
+                        fillVals = RColorBrewer::brewer.pal(length(venn.names), "Set2")
+                        #,
+                        #relevant.genes = c("BCL2", "MAPK14", "CD14", "CD34")
+                        ) {
   og.path <- getwd()
   library(plyr)
   dir.create(fname)
@@ -32,11 +35,13 @@ compareSigs <- function(path.list, venn.names = names(path.list),
 
   # Venn diagram
   setwd(fname)
-  my.venn <- ggvenn::ggvenn(venn.data)
+  my.venn <- ggvenn::ggvenn(venn.data, show_percentage=FALSE, text_size=6, 
+                            fill_color=fillVals)
   ggplot2::ggsave("venn_diagram.pdf",my.venn, 
                   width = 7, height = 7)
   
-  my.venn <- ggvenn::ggvenn(sig.venn.data)
+  my.venn <- ggvenn::ggvenn(sig.venn.data, show_percentage=FALSE, text_size=6,
+                            fill_color=fillVals)
   ggplot2::ggsave("venn_diagram_significant.pdf",my.venn, 
                   width = 7, height = 7)
   
@@ -176,6 +181,12 @@ sig.paths <- list("Sorted" = "analysis/DIA_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/
                   "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
                   "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv")
 compareSigs(sig.paths, fname = "Monocyte_vs_progenitor_signatures_beadOnly")
+
+sig.paths <- list("Sorted" = "analysis/DIA_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+                  "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv",
+                  "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
+                  "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv")
+compareSigs(sig.paths, fname = "Monocyte_vs_progenitor_signatures_beadOnly_2025-01-20")
 
 #### 3. flow type ####
 # since MSC was only flow sorted, remove MSC from sort type comparisons
