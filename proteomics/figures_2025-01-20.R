@@ -1,8 +1,9 @@
 # plots for SACB poster re: sorted AML proteomics
-library(synapser);library(ggplot2)
+library(plyr);library(dplyr);library(synapser);library(ggplot2)
 setwd("~/OneDrive - PNNL/Documents/PTRC2/sortedAMLproteomics/SACB_2025/poster/")
 
 n.top <- 5
+synapser::synLogin()
 #### 1. diffexp bar plot: top 20 ####
 # load input
 diffexp <- na.omit(read.csv(synapser::synGet("syn64543462")$path))
@@ -50,7 +51,7 @@ diffexp.dot
 ggsave(paste0("diffexp_top_",n.top,"_sig_absLog2FC_dotPlot.pdf"), diffexp.dot, width=4, height=4)
 
 n.top <- 5
-#### 1. GSEA bar plot: Hallmark ####
+#### 2. GSEA bar plot: Hallmark ####
 # load input
 gsea <- read.csv(synapser::synGet("syn64543470")$path)
 top.gsea <- gsea %>% slice_max(abs(NES), n = n.top)
@@ -102,7 +103,42 @@ gsea.bar <- ggplot(top.gsea, aes(x=`Gene Set`, y=NES, fill="red", alpha=0.5)) + 
 gsea.bar
 ggsave(paste0("GSEA_Hallmark_top_",n.top,"_upregulated_sets_barPlot.pdf"), gsea.bar, width=5, height=3)
 
-#### 2. DMEA bar plot #### - redo with combos?
+
+#### 3. Diffexp dot plot: leading genes ####
+# load input
+goi <- stringr::str_split(top.gsea[top.gsea$`Gene Set` == "TNFA_SIGNALING_VIA_NFKB",]$Leading_edge, ", ")[[1]] # 29
+goi.diffexp <- diffexp[diffexp$Gene %in% goi,]
+sig.goi.diffexp <- goi.diffexp[goi.diffexp$adj.P.Val<=0.05,] # 11
+nSig <- nrow(sig.goi.diffexp)
+nTotal <- nrow(goi.diffexp)
+title <- paste0("NFKB signaling genes\n(",nSig,"/",nTotal, " with adjusted p <= 0.05)")
+sig.goi.diffexp$`-Log(FDR)` <- -log(sig.goi.diffexp$adj.P.Val, base=10)
+absMaxLog2FC <- max(abs(sig.goi.diffexp$Log2FC))
+maxLogFDR <- ceiling(max(sig.goi.diffexp$`-Log(FDR`))
+sig.goi.diffexp$Significant <- TRUE
+setOrder <- sig.goi.diffexp[order(sig.goi.diffexp$Log2FC),]$Gene
+diffexp.dot <- ggplot(sig.goi.diffexp, aes(x=Gene, y="CD14+ vs. CD34+", color=Log2FC, size=`-Log(FDR)`)) + geom_point()+
+  ggplot2::scale_x_discrete(limits = setOrder) +
+  scale_size(limits=c(1,maxLogFDR), range = c(0.5,7)) +
+  scale_color_gradient2(low="blue",high="red", mid="grey", limits=c(-absMaxLog2FC, absMaxLog2FC)) +
+  geom_point(data = subset(sig.goi.diffexp, Significant), col = "black", stroke = 1.5, shape = 21) +
+  theme(axis.title.x=element_blank(), axis.title.y=element_blank(), axis.text = element_text(size=16)) + 
+  theme_classic(base_size = 12) + ggtitle(title) + coord_flip()
+diffexp.dot
+ggsave(paste0("NFKB_leadingEdge_sig_diffexp_dotPlot.pdf"), diffexp.dot, width=3, height=4)
+
+diffexp.dot <- ggplot(sig.goi.diffexp, aes(x=Gene, y="CD14+ vs. CD34+", color=Log2FC, size=`-Log(FDR)`)) + geom_point()+
+  ggplot2::scale_x_discrete(limits = rev(setOrder)) +
+  scale_size(limits=c(1,maxLogFDR), range = c(0.5,7)) +
+  scale_color_gradient2(low="blue",high="red", mid="grey", limits=c(-absMaxLog2FC, absMaxLog2FC)) +
+  geom_point(data = subset(sig.goi.diffexp, Significant), col = "black", stroke = 1.5, shape = 21) +
+  theme_classic(base_size = 12) + ggtitle(title) +
+  theme(axis.title.y=element_blank(), #axis.text = element_text(size=16),
+        axis.text.x = element_text(angle = 45, vjust=1, hjust=1))
+diffexp.dot
+ggsave(paste0("NFKB_leadingEdge_sig_diffexp_dotPlot_horizontal.pdf"), diffexp.dot, width=5, height=2)
+ggsave(paste0("NFKB_leadingEdge_sig_diffexp_dotPlot_horizontal_taller.pdf"), diffexp.dot, width=5, height=3)
+#### 2. DMEA bar plot ####
 # load input
 moa.results <- read.csv(synapser::synGet("syn64606616")$path)
 top.gsea <- moa.results %>% slice_max(abs(NES), n = n.top)
