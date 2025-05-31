@@ -32,7 +32,7 @@ meta.df$id <- paste0('X', meta.df$MeasurementName)
 
 # add other metadata for contrasts
 meta.df$CD14 <- "Neg"
-meta.df[grepl("CD14+", meta.df$SampleType),]$CD14_Pos <- "Neg"
+meta.df[grepl("CD14+", meta.df$SampleType),]$CD14_Pos <- "Pos"
 
 meta.df$CD34 <- "Neg"
 meta.df[grepl("CD34+", meta.df$SampleType),]$CD34_Pos <- "Pos"
@@ -42,12 +42,7 @@ meta.df[meta.df$SampleType == "MSC Flow",]$MSC <- "MSC"
 
 meta.df$'Sort Type' <- "Bead"
 meta.df[grepl("Flow", meta.df$SampleType),]$'Sort Type' <- "Flow"
-
-meta.df$Pooled <- meta.df$SampleType
-meta.df[meta.df$CD14=="Pos",]$Pooled <- "CD14+"
-meta.df[meta.df$CD34=="Pos",]$Pooled <- "CD34+"
-meta.df[meta.df$MSC=="MSC",]$Pooled <- "MSC"
-
+rownames(meta.df) <- meta.df$row.name
 global.df <- read.table(
   "global_data/Exp24_crosstab_global_gene_corrected.txt", 
   sep = "\t")
@@ -79,10 +74,10 @@ meta.df$X <- NULL
 
 # add other metadata for contrasts
 meta.df$CD14 <- "Neg"
-meta.df[grepl("CD14+", meta.df$`sample type`),]$CD14_Pos <- "Neg"
+meta.df[grepl("CD14+", meta.df$`sample type`),]$CD14 <- "Pos"
 
 meta.df$CD34 <- "Neg"
-meta.df[grepl("CD34+", meta.df$`sample type`),]$CD34_Pos <- "Pos"
+meta.df[grepl("CD34+", meta.df$`sample type`),]$CD34 <- "Pos"
 
 meta.df$MSC <- "Non_MSC"
 meta.df[meta.df$`sample type` == "MSC Flow",]$MSC <- "MSC"
@@ -90,89 +85,85 @@ meta.df[meta.df$`sample type` == "MSC Flow",]$MSC <- "MSC"
 meta.df$'Sort Type' <- "Bead"
 meta.df[grepl("Flow", meta.df$`sample type`),]$'Sort Type' <- "Flow"
 
-meta.df$Pooled <- meta.df$SampleType
-meta.df[meta.df$CD14=="Pos",]$Pooled <- "CD14+"
-meta.df[meta.df$CD34=="Pos",]$Pooled <- "CD34+"
-meta.df[meta.df$MSC=="MSC",]$Pooled <- "MSC"
-
 synapser::synLogin()
-globalFile <- synapser::synGet("syn55234888") # Samantha's unprocessed version
+globalFile <- synapser::synGet("syn63608740") # Samantha's unprocessed version
+# previously: syn55234888 with 8897 proteins -> 6115 after requiring proteins in 50+% of samples
+# now with larger library: syn63608740 with 7025 proteins after requiring proteins in 50+% of samples, 
 global.df <- read.table(
   globalFile$path, 
-  sep = "\t") # 8897 proteins, 48 samples
+  sep = "\t") # 7025 proteins, 48 samples
+hist(rowSums(is.na(global.df)))
+hist(colMeans(!is.na(global.df)))
 
 # require proteins to be quantified in at least half of samples
-global.df <- global.df[which(rowSums(is.na(global.df)) < ncol(global.df)/2),] # 6115 proteins, 48 samples
+global.df <- global.df[which(rowSums(is.na(global.df)) < ncol(global.df)/2),] # 7025 proteins, 48 samples
 
 # require samples to have at least 50% of proteins quantified
 #global.df <- global.df[ , which(colSums(is.na(global.df)) < nrow(global.df)/2)] # 42 out of 48 samples are kept
-global.df75 <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.75)] # 36 out of 48 samples are kept
-global.df <- NULL
+global.df75 <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.75)] # 37 out of 48 samples are kept
+hist(unlist(global.df75))
+#global.df <- NULL
 
-# log2-transform DIA data
-#global.df <- log(global.df, 2)
-
-global.df75 <- log(global.df75[,colnames(global.df75)!="Gene"],2)
-
-# subtract row (protein) medians
-#global_row_medians <- apply(global.df, 1, median, na.rm = T)
-#global.df <- sweep(global.df, 1, global_row_medians, FUN = '-')
-
-global_row_medians75 <- apply(global.df75, 1, median, na.rm = T)
-global.df75 <- sweep(global.df75, 1, global_row_medians75, FUN = '-')
-
-# subtract column (sample) medians
-#global_sample_coef <- apply(global.df, 2, median, na.rm = T)
-#global.df <- sweep(global.df, 2, global_sample_coef, FUN = '-')
-
-global_sample_coef75 <- apply(global.df75, 2, median, na.rm = T)
-global.df75 <- sweep(global.df75, 2, global_sample_coef75, FUN = '-')
+# Camilo already did lines 112-129
+# # log2-transform DIA data
+# #global.df <- log(global.df, 2)
+# 
+# global.df75 <- log(global.df75[,colnames(global.df75)!="Gene"],2)
+# 
+# # subtract row (protein) medians
+# #global_row_medians <- apply(global.df, 1, median, na.rm = T)
+# #global.df <- sweep(global.df, 1, global_row_medians, FUN = '-')
+# 
+# global_row_medians75 <- apply(global.df75, 1, median, na.rm = T)
+# global.df75 <- sweep(global.df75, 1, global_row_medians75, FUN = '-')
+# 
+# # subtract column (sample) medians
+# #global_sample_coef <- apply(global.df, 2, median, na.rm = T)
+# #global.df <- sweep(global.df, 2, global_sample_coef, FUN = '-')
+# 
+# global_sample_coef75 <- apply(global.df75, 2, median, na.rm = T)
+# global.df75 <- sweep(global.df75, 2, global_sample_coef75, FUN = '-')
 
 # add column for feature names and later make it the first column
-#global.df$Gene <- rownames(global.df) # 6092 gene symbols
-global.df75$Gene <- rownames(global.df75) # 6092 gene symbols
+global.df$Gene <- rownames(global.df) # 7025 gene symbols
+global.df75$Gene <- rownames(global.df75) # 7025 gene symbols
+rownames(meta.df) <- meta.df$id
 #write.csv(global.df, "Exp24_DIA_crosstab_global_gene_corrected.csv", row.names = FALSE)
 #write.csv(global.df75, "Exp24_DIA_75PercentCoverage_crosstab_global_gene_corrected.csv", row.names = FALSE)
-# dia <- list("meta" = meta.df[meta.df$id %in% colnames(global.df), ],
-#             "global" = global.df)
+dia <- list("meta" = meta.df[meta.df$id %in% colnames(global.df), ],
+            "global" = global.df)
 dia75 <- list("meta" = meta.df[meta.df$id %in% colnames(global.df75), ],
             "global" = global.df75)
-#synfile <- synapser::File("Exp24_DIA_crosstab_global_gene_corrected.csv", "syn54821995")
-#synapser::synStore(synfile)
+
 
 ### combine DIA & TMT
-#dia$meta$method <- "DIA"
-dia75$meta$method <- "DIA"
-tmt$meta$method <- "TMT"
-
-# make sure dia & tmt meta data have same columns
-#dia$meta[, colnames(dia$meta)[!(colnames(dia$meta) %in% colnames(tmt$meta))]] <- NULL
-tmt$meta[, colnames(tmt$meta)[!(colnames(tmt$meta) %in% colnames(dia75$meta))]] <- NULL
-dia75$meta[, colnames(dia75$meta)[!(colnames(dia75$meta) %in% colnames(tmt$meta))]] <- NULL
-
-dia.tmt75 <- list("meta" = rbind(dia75$meta, tmt$meta),
-                "global" = merge(dia75$global, tmt$global, all = TRUE, 
-                                 suffixes = c("_DIA", "_TMT")))
+# #dia$meta$method <- "DIA"
+# dia75$meta$method <- "DIA"
+# tmt$meta$method <- "TMT"
+# 
+# # make sure dia & tmt meta data have same columns
+# #dia$meta[, colnames(dia$meta)[!(colnames(dia$meta) %in% colnames(tmt$meta))]] <- NULL
+# tmt$meta[, colnames(tmt$meta)[!(colnames(tmt$meta) %in% colnames(dia75$meta))]] <- NULL
+# dia75$meta[, colnames(dia75$meta)[!(colnames(dia75$meta) %in% colnames(tmt$meta))]] <- NULL
+# 
+# dia.tmt75 <- list("meta" = rbind(dia75$meta, tmt$meta),
+#                 "global" = merge(dia75$global, tmt$global, all = TRUE, 
+#                                  suffixes = c("_DIA", "_TMT")))
 
 #### 2. Histograms and PCA ####
 base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis"
 setwd(base.path)
 
-phenos <- c("Plex", "id", "patient", "SampleType", "Pooled", "Aza", "Ven", "Aza.Ven", "Flow", "method")
+phenos <- c("Plex", "id", "patient", "sample type", "Aza", "Ven", "Aza.Ven", "Flow", "method")
 library(MSnSet.utils)
-setwd(base.path)
-
-if (file.exists("gmt_BeatAML_drug_MOA.rds")) {
-  gmt.drug <- readRDS("gmt_BeatAML_drug_MOA.rds")
-} else {
-  gmt.drug <- DMEA::as_gmt(moa.BeatAML, sep = ", ")
-  saveRDS(gmt.drug, "gmt_BeatAML_drug_MOA.rds")
-}
 
 dir.create("histograms_and_PCA")
 setwd("histograms_and_PCA")
-dir.create("DIAnotSampleCentered")
-setwd("DIAnotSampleCentered")
+dir.create("20241001")
+setwd("20241001")
+method.data <- list("TMT" = tmt,
+                  "DIA" = dia,
+                  "DIA_75PercentCoverage" = dia75)
 for (k in 1:length(method.data)) {
   if (grepl("DIA", names(method.data)[k])) {
     omics <- list("Global" = method.data[[k]]$global)
@@ -259,6 +250,14 @@ method.data <- list("DIA" = dia.wo.out2a,
                     "TMT" = tmt.wo.out2a)
 
 #### 3. Run panSEA for each contrast & combination ####
+setwd(base.path)
+if (file.exists("gmt_BeatAML_drug_MOA.rds")) {
+  gmt.drug <- readRDS("gmt_BeatAML_drug_MOA.rds")
+} else {
+  gmt.drug <- DMEA::as_gmt(moa.BeatAML, sep = ", ")
+  saveRDS(gmt.drug, "gmt_BeatAML_drug_MOA.rds")
+}
+
 synapse_id <- "syn53606820"
 all.degs <- data.frame()
 contrasts <- c("CD14", "CD34", "MSC", "Aza", "Ven", "Aza.Ven", "Sort Type")

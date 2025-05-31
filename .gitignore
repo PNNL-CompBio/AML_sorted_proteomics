@@ -86,3 +86,6 @@ comparisons/Short summary of analysis so far.pptx
 *.json
 *.svg
 *.xlsx
+*.pptx
+*.cys
+*.gml

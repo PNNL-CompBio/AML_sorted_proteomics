@@ -170,12 +170,113 @@ method.data <- list("TMT" = tmt,
                     "DIA" = dia,
                     "DIA_75PercentCoverage" = dia75)
 
+### new batch of DIA ###
+meta.df <- readxl::read_excel("CPTAC Samples 03_25_25_long.xlsx") 
+meta.df <- meta.df[meta.df$`run or not run?`=="run",]
+meta.df$patient <- gsub("-",".",meta.df$Sample)
+meta.df$id <- paste0("PTRC_",meta.df$patient,"_",meta.df$`cell type`,"_",
+                     substring(meta.df$`sorting method`,1,1),"_",as.numeric(meta.df$cells)/1000,"K")
+rownames(meta.df) <- meta.df$id
+
+dia.meta.df <- readxl::read_excel("Exp24metadataTable_DIA.xlsx") 
+dia.meta.df$id <- stringr::str_split_i(dia.meta.df$patient, "-", -1)
+dia.meta.df$id <- paste0("X", dia.meta.df$id)
+dia.meta.df[dia.meta.df$`sample type` == "CD14+", ]$id <- paste0(dia.meta.df[dia.meta.df$`sample type` == "CD14+", ]$id, "_CD14plus")
+dia.meta.df[dia.meta.df$`sample type` == "CD34+", ]$id <- paste0(dia.meta.df[dia.meta.df$`sample type` == "CD34+", ]$id, "_CD34plus")
+dia.meta.df[dia.meta.df$`sample type` == "CD14+ Flow", ]$id <- paste0(dia.meta.df[dia.meta.df$`sample type` == "CD14+ Flow", ]$id, "_CD14plusFlow")
+dia.meta.df[dia.meta.df$`sample type` == "CD34+ Flow", ]$id <- paste0(dia.meta.df[dia.meta.df$`sample type` == "CD34+ Flow", ]$id, "_CD34plusFlow")
+dia.meta.df[dia.meta.df$`sample type` == "MSC Flow", ]$id <- paste0(dia.meta.df[dia.meta.df$`sample type` == "MSC Flow", ]$id, "_MSCflow")
+rownames(dia.meta.df) <- dia.meta.df$id
+dia.meta.df$patient2 <- gsub("-","[.]",dia.meta.df$patient)
+
+any(dia.meta.df$patient2 %in% meta.df$patient) # no patient overlap
+
+# add other drug info & make sure sensitivity is correctly labeled
+sens.info2 <- readxl::read_excel(synapser::synGet("syn65472730")$path)
+colnames(sens.info2)[1] <- "Sample"
+meta.df <- merge(meta.df, sens.info2,by="Sample")
+
+# add other metadata for contrasts
+meta.df$CD14 <- "Neg"
+meta.df[grepl("cd14", meta.df$`cell type`),]$CD14 <- "Pos"
+
+meta.df$CD34 <- "Neg"
+meta.df[grepl("cd34", meta.df$`cell type`),]$CD34 <- "Pos"
+
+meta.df$MSC <- "Non_MSC"
+meta.df[meta.df$`cell type` == "msc",]$MSC <- "MSC"
+
+meta.df$'Sort Type' <- "Bead"
+meta.df[grepl("flow", meta.df$`sorting method`),]$'Sort Type' <- "Flow"
+
+synapser::synLogin()
+globalFile <- synapser::synGet("syn66694759") # from Samantha processed using: https://github.com/PNNL-CompBio/AML_sorted_proteomics/blob/main/proteomics/DIA/final_processing_DIA_sorted_cells.Rmd 
+# she originally required proteins in 24+ samples because last batch had 48 samples, but now updated to ncol(m)/2 = 15.5 samples
+global.df <- read.table(
+  globalFile$path, 
+  sep = "\t") # 8404 rows, 31 variables
+hist(rowSums(is.na(global.df)))
+hist(colMeans(!is.na(global.df)))
+
+# require proteins to be quantified in at least half of samples
+global.df <- global.df[which(rowSums(is.na(global.df)) < ncol(global.df)/2),] # 8404 proteins, 31 samples
+
+# require samples to have at least 50% of proteins quantified
+global.df75 <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.75)] # 31 out of 31 samples are kept
+hist(unlist(global.df75))
+newCols <- sub("K_.*","K", colnames(global.df75))
+colnames(global.df75) <- newCols
+global.df75$Gene <- rownames(global.df75)
+dia2 <- list("meta" = meta.df,
+             "global" = global.df75)
+
+## combine DIA batches
+meta.df$Aza.Ven <- NA
+meta.df$`Aza-Ven AUC` <- as.numeric(meta.df$`Aza-Ven AUC`)
+meta.df[!is.na(meta.df$`Aza-Ven AUC`) & 
+          meta.df$`Aza-Ven AUC`<100,]$Aza.Ven <- "Sensitive"
+meta.df[!is.na(meta.df$`Aza-Ven AUC`) & 
+          meta.df$`Aza-Ven AUC`>100,]$Aza.Ven <- "Resistant"
+
+meta.df$Aza <- NA
+meta.df$`Aza AUC` <- as.numeric(meta.df$`Aza AUC`)
+meta.df[!is.na(meta.df$`Aza AUC`) & 
+          meta.df$`Aza AUC`<200,]$Aza <- "Sensitive"
+meta.df[!is.na(meta.df$`Aza AUC`) & 
+          meta.df$`Aza AUC`>200,]$Aza <- "Resistant"
+
+meta.df$Ven <- NA
+meta.df$`Ven AUC` <- as.numeric(meta.df$`Ven AUC`)
+meta.df[!is.na(meta.df$`Ven AUC`) & 
+          meta.df$`Ven AUC`<100,]$Ven <- "Sensitive"
+meta.df[!is.na(meta.df$`Ven AUC`) & 
+          meta.df$`Ven AUC`>100,]$Ven <- "Resistant"
+meta.df <- meta.df[,c("Sample","id","CD14","CD34","MSC","Sort Type","Aza.Ven","Ven","Aza")]
+colnames(meta.df)[1] <- "patient"
+meta.df$batch <- "batch2"
+rownames(meta.df) <- meta.df$id
+oldMeta <- dia75$meta[,c("patient","id","CD14","CD34","MSC","Sort Type","Aza.Ven","Ven","Aza")]
+oldMeta$batch <- "batch1"
+mCombo <- rbind(meta.df, oldMeta)
+gCombo <- merge(global.df75, dia75$global, by="Gene", all=TRUE) # 8538 rows, 68 samples
+mCombo$Flow <- FALSE
+mCombo[mCombo$`Sort Type`=="Flow",]$Flow <- TRUE
+rownames(gCombo) <- gCombo$Gene
+
+mCombo$cellType <- "CD34"
+mCombo[mCombo$CD14=="Pos",]$cellType <- "CD14"
+mCombo[mCombo$MSC=="MSC",]$cellType <- "MSC"
+diaCombo <- list("meta" = mCombo,
+                 "global" = gCombo)
+
 #### 2. Histograms and PCA ####
 base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis"
 setwd(base.path)
 
-phenos <- c("Plex", "id", "patient", "Sample Type", "Aza", "Ven", "Aza.Ven", "Flow")
+phenos <- c("Plex", "id", "patient", "Sample Type", "Aza", "Ven", "Aza.Ven", "Flow","batch","cellType")
+phenos <- "cellType"
 library(MSnSet.utils)
+write.csv(mCombo,"Exp24-27_metadata.csv")
 
 dir.create("histograms_and_PCA")
 setwd("histograms_and_PCA")
@@ -185,6 +286,7 @@ dir.create("rmOutliers")
 setwd("rmOutliers")
 dir.create("rmMoreOutliers")
 setwd("rmMoreOutliers")
+method.data <- list("DIA_2batches" = diaCombo)
 for (k in 1:length(method.data)) {
   if (grepl("DIA", names(method.data)[k])) {
     omics <- list("Global" = method.data[[k]]$global)
@@ -210,10 +312,35 @@ for (k in 1:length(method.data)) {
       sample.names <- colnames(omics[[i]])[colnames(omics[[i]]) %in% temp.meta$id]
       pca.data <- MSnSet(exprs = omics[[i]][, sample.names] %>% as.matrix(),
                          pData = temp.meta[sample.names,])
+      # try to resolve batch effect
+      if ("batch" %in% phenos){
+        pca.data <- correct_batch_effect_NA(pca.data, "batch", "cellType", par.prior = T) 
+        write.table(exprs(pca.data), 
+                    file = "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/data/global_data/Exp24-27_crosstab_global_DIA_gene_corrected.txt",
+                    quote=F, sep="\t")
+      }
       for (j in 1:length(temp.phenos)) {
         MSnSet.utils::plot_pca(pca.data, phenotype = temp.phenos[j], label = "patient") + ggtitle(paste(names(method.data)[k], names(omics)[i], "PCA"))
-        ggsave(paste0(names(method.data)[k], "_", names(omics)[i], "_PCA_", temp.phenos[j], "_", Sys.Date(), ".pdf")) # 3018 DIA (49%), 3975 (77%) TMT; wo outliers1: 3261 DIA (53%), 3986 TMT (77%), 17 TMT phospho (2%)
+        ggsave(paste0(names(method.data)[k], "_", names(omics)[i], "_PCA_", temp.phenos[j], "_", Sys.Date(), "_batchCorrectedTypeCov.pdf"),width=5,height=5) # 3018 DIA (49%), 3975 (77%) TMT; wo outliers1: 3261 DIA (53%), 3986 TMT (77%), 17 TMT phospho (2%)
+        
+        MSnSet.utils::plot_pca(pca.data, phenotype = temp.phenos[j], label = "batch") + ggtitle(paste(names(method.data)[k], names(omics)[i], "PCA"))
+        ggsave(paste0(names(method.data)[k], "_", names(omics)[i], "_PCA_", temp.phenos[j], "_", Sys.Date(), "_batchCorrectedTypeCov_batchLabel.pdf"),width=5,height=5) # 3018 DIA (49%), 3975 (77%) TMT; wo outliers1: 3261 DIA (53%), 3986 TMT (77%), 17 TMT phospho (2%)
+        
       } 
+      
+      # if ("batch" %in% phenos){
+      #   pca.data <- MSnSet(exprs = omics[[i]][, sample.names] %>% as.matrix(),
+      #                      pData = temp.meta[sample.names,])
+      #   pca.data <- correct_batch_effect_NA(pca.data, "batch", "patient", par.prior = T) 
+      # }
+      # for (j in 1:length(temp.phenos)) {
+      #   MSnSet.utils::plot_pca(pca.data, phenotype = temp.phenos[j], label = "patient") + ggtitle(paste(names(method.data)[k], names(omics)[i], "PCA"))
+      #   ggsave(paste0(names(method.data)[k], "_", names(omics)[i], "_PCA_", temp.phenos[j], "_", Sys.Date(), "_batchCorrectedPatientCov.pdf"),width=5,height=5) # 3018 DIA (49%), 3975 (77%) TMT; wo outliers1: 3261 DIA (53%), 3986 TMT (77%), 17 TMT phospho (2%)
+      #   
+      #   MSnSet.utils::plot_pca(pca.data, phenotype = temp.phenos[j], label = "batch") + ggtitle(paste(names(method.data)[k], names(omics)[i], "PCA"))
+      #   ggsave(paste0(names(method.data)[k], "_", names(omics)[i], "_PCA_", temp.phenos[j], "_", Sys.Date(), "_batchCorrectedPatientCov_batchLabel.pdf"),width=5,height=5) # 3018 DIA (49%), 3975 (77%) TMT; wo outliers1: 3261 DIA (53%), 3986 TMT (77%), 17 TMT phospho (2%)
+      #   
+      # } 
     }
   }
 }
@@ -292,6 +419,42 @@ dia.tmt.wo.out <- list("meta" = rbind(dia.wo.out$meta[, colnames(dia.wo.out$meta
 #                     "TMT" = tmt.wo.out)
 method.data <- list("DIA" = dia.wo.out,
                     "TMT" = tmt.wo.out)
+
+# also generate PCA just for DIA bead sorted (no flow, and therefore no MSC)
+for (k in 1) {
+  if (grepl("DIA", names(method.data)[k])) {
+    omics <- list("Global" = method.data[[k]]$global)
+  } else {
+    omics <- list("Global" = method.data[[k]]$global,
+                  "Phospho" = method.data[[k]]$phospho)
+  }
+  temp.meta <- method.data[[k]]$meta
+  temp.meta <- temp.meta[temp.meta$`Sort Type` == "Bead",]
+  temp.phenos <- c("Sample Type")
+  
+  for (i in 1:length(omics)) {
+    # histogram
+    melted.df <- reshape2::melt(omics[[i]])
+    xlab <- paste("Normalized", names(omics)[i], "Expression")
+    title <- names(method.data)[k]
+    pdf(file.path(paste0(names(method.data)[k], "_beadSorted_", names(omics)[i], "_histogram_", Sys.Date(), ".pdf")))
+    hist(melted.df$value, xlab = xlab, main = title)
+    dev.off()
+    
+    # pca
+    if (names(method.data)[k] != "DIA_&_TMT") {
+      #sample.names <- temp.meta$id[temp.meta$id %in% colnames(omics[[i]])]
+      sample.names <- colnames(omics[[i]])[colnames(omics[[i]]) %in% temp.meta$id]
+      pca.data <- MSnSet(exprs = omics[[i]][, sample.names] %>% as.matrix(),
+                         pData = temp.meta[sample.names,])
+      for (j in 1:length(temp.phenos)) {
+        MSnSet.utils::plot_pca(pca.data, phenotype = temp.phenos[j], label = "patient") + ggtitle(paste(names(method.data)[k], names(omics)[i], "PCA")) # 4612 complete rows for PCA
+        ggsave(paste0(names(method.data)[k], "_beadSorted_", names(omics)[i], "_PCA_", temp.phenos[j], "_", Sys.Date(), ".pdf"),
+               width=5, height=5) # 3018 DIA (49%), 3975 (77%) TMT; wo outliers1: 3261 DIA (53%), 3986 TMT (77%), 17 TMT phospho (2%)
+      } 
+    }
+  }
+}
 
 # also run DIA phospho peptide vs. TMT
 #pep.wo.out <- list("meta" = pep$meta[!(pep$meta$id %in% outliers),],"DIA" = )

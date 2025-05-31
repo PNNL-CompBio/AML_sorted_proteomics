@@ -3,7 +3,7 @@
 # Author: Belinda B. Garana
 # Created: 2023-12-06
 # Last edit: 2024-02-09
-
+remove(list=ls())
 library(readxl); library(panSEA); library(synapser)
 library(stringr); library(tidyr); library(dplyr); library(Biobase)
 
@@ -291,9 +291,10 @@ if (file.exists("gmt_BeatAML_drug_MOA.rds")) {
 }
 
 #synapse_id <- "syn53606820"
-synapse_id <- "syn63609944"
+#synapse_id <- "syn63609944"
+synapse_id <- "syn64501548"
 all.degs <- data.frame()
-contrasts <- c("CD14", "CD34", "MSC", "Aza", "Ven", "Aza.Ven", "Sort Type")
+contrasts <- c("CD14", "CD34", "Aza", "Ven", "Aza.Ven", "Sort Type", "MSC")
 #BeatAML.data <- load_not_norm_BeatAML_for_DMEA2()
 sorted.patients <- c("18-00105", "21-00839", "22-00571", "22-00117", "16-01184",
                      "19-00074", "18-00103", "21-00432", "17-01060", "22-00251")
@@ -309,6 +310,15 @@ BeatAML.data <- load_not_norm_BeatAML_for_DMEA3(exclude.samples = sorted.patient
 # gmt1[["WikiPathways"]] <- temp.gmt
 # gmt1 <- gmt1[c(1:12,14)]
 # saveRDS(gmt1, "gmt1_more.rds")
+gmt1 <- readRDS("gmt1_more.rds")
+# gmt.names <- c("Hallmark","PID", "Oncogenic_signatures", "KEGG")
+# gmt1 <- gmt1[gmt.names]
+# saveRDS(gmt1, "gmt1_more.rds")
+#devtools::install_github("cstawitz/roomba")
+# library(roomba)
+# packageurl <- "http://cran.r-project.org/src/contrib/Archive/ggplot2/ggplot2_3.4.4.tar.gz"
+# install.packages(packageurl, repos=NULL, type="source")
+# library(ggplot2)
 for (k in 1:length(method.data)) {
   setwd(base.path)
   method.path <- file.path(base.path, names(method.data)[k])
@@ -339,18 +349,35 @@ for (k in 1:length(method.data)) {
                       gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
                       base.path = base.path,
                       temp.path = method.path,
-                      synapse_id = methodFolder, timeout = 60)
+                      synapse_id = methodFolder
+                  #, timeout = 60
+                  )
+  # there is an error at Aza.Ven_Sensitive_vs_Resistant with MSC == MSC but can just re-run loop or from line 340 to continue 
+  # now getting error saving volcano plot even though the data looks fine and all analyses ran
+  # Error in replace_null(unclass(data), label = "a", angle = 0) : 
+  # could not find function "replace_null"
   
-  contasts_afterMSC <- c("Aza", "Ven", "Aza.Ven", "Sort Type")
-  contasts_afterMSC <- c("Ven", "Aza.Ven")
-  panSEA2_combos2(contrasts, meta.df = meta.df, 
-                  omics = omics,
-                  expr = temp.expr,
-                  gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
-                  base.path = base.path,
-                  temp.path = method.path,
-                  synapse_id = methodFolder, 
-                  filters = contrasts_afterMSC, timeout = 60)
+  # contasts_afterMSC <- c("Aza", "Ven", "Aza.Ven", "Sort Type")
+  # contasts_afterMSC <- c("Ven", "Aza.Ven")
+  # 
+  # # panSEA2_combos2(contrasts, meta.df = meta.df, 
+  # #                     omics = omics,
+  # #                     expr = temp.expr,
+  # #                     gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
+  # #                     base.path = base.path,
+  # #                     temp.path = method.path,
+  # #                     synapse_id = methodFolder, timeout = 60)
+  # 
+  # #contasts_afterMSC <- c("Aza", "Ven", "Aza.Ven", "Sort Type")
+  # contrasts_afterMSC <- c("Ven", "Aza.Ven")
+  # panSEA2_combos2(contrasts, meta.df = meta.df, 
+  #                 omics = omics,
+  #                 expr = temp.expr,
+  #                 gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
+  #                 base.path = base.path,
+  #                 temp.path = method.path,
+  #                 synapse_id = methodFolder, 
+  #                 filters = contrasts_afterMSC, timeout = 60)
   
   # get compiled DEGs
   methodDEGs <- as.list(synapser::synGetChildren(methodFolder, list("file"), sortBy = 'NAME'))

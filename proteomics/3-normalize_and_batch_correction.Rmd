@@ -21,6 +21,11 @@ phospho_crosstab_pep <- phospho_crosstab_pep[2:nrow(phospho_crosstab_pep),]
 # rownames(phospho_crosstab_pep) <- phospho_crosstab_pep[,1] # can't put peptide names in rownames because hashtags are lost
 peptide.labels <- phospho_crosstab_pep[,1] # storing to reinstate at end
 phospho_crosstab_pep <- phospho_crosstab_pep[,2:ncol(phospho_crosstab_pep)]
+
+DIA_phospho_crosstab_pep <- read.table("proteomics/data/phospho_data/DIA/report.pr_matrix.tsv", fill = TRUE, header = FALSE)
+DIA_phospho_crosstab_pep <- DIA_phospho_crosstab_pep[,] # only keep peptide labels along rows and data with samples along columns
+
+
 phospho_crosstab_prot <- read.table("proteomics/data/phospho_data/Exp24_crosstab_phospho_siteID_prot_original.txt", sep = "\t")
 
 meta <- read_excel("proteomics/data/Exp24metadataTable_TMT.xlsx") 
@@ -70,8 +75,19 @@ write.csv(og_phospho_crosstab,
 og_phospho_crosstab_pep <- phospho_crosstab_pep
 sampleIDs <- meta2$DIA_id[as.numeric(colnames(og_phospho_crosstab_pep))]
 colnames(og_phospho_crosstab_pep) <- sampleIDs
-write.csv(og_phospho_crosstab_pep, 
-            file = "proteomics/data/phospho_data/Exp24_crosstab_phospho_peptide_original_sampleIDs.csv", row.names = peptide.labels)
+og_phospho_crosstab_pep$peptide <- peptide.labels
+og_phospho_crosstab_pep <- og_phospho_crosstab_pep[,c("peptide",sampleIDs)]
+# write.csv(og_phospho_crosstab_pep, 
+#             file = "proteomics/data/phospho_data/Exp24_crosstab_phospho_peptide_original_sampleIDs.csv", row.names = FALSE)
+
+# data is lost after hashtags in peptides
+og_phospho_crosstab_pep <- phospho_crosstab_pep
+sampleIDs <- meta2$DIA_id[as.numeric(colnames(og_phospho_crosstab_pep))]
+colnames(og_phospho_crosstab_pep) <- sampleIDs
+og_phospho_crosstab_pep$peptide <- peptide.labels
+og_phospho_crosstab_pep <- og_phospho_crosstab_pep[,c("peptide",sampleIDs)]
+write.table(og_phospho_crosstab_pep, 
+            file = "proteomics/data/phospho_data/Exp24_crosstab_phospho_peptide_original_sampleIDs.txt", row.names = FALSE, quote=F, sep="\t")
 
 ```
 
