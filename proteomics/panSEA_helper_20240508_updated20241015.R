@@ -441,11 +441,11 @@ get_ksdb <- function(organism="human"){
   if (file.exists(file.path(paste0("gmt_ksdb_", organism, ".rds")))) {
     gmt <- readRDS(file.path(paste0("gmt_ksdb_", organism, ".rds")))
   } else if (organism == "human") {
-    url <- "https://raw.github.com/BelindaBGarana/panSEA/main/data/gmt_ksdb_human.rds"
+    url <- "https://raw.github.com/PNNL-CompBio/panSEA/main/data/gmt_ksdb_human.rds"
     httr::GET(url, httr::write_disk("gmt_ksdb_human.rds")) 
     gmt <- readRDS("gmt_ksdb_human.rds")
   } else {
-    ksdb <- read.csv(paste0("https://raw.githubusercontent.com/BelindaBGarana/",
+    ksdb <- read.csv(paste0("https://raw.githubusercontent.com/PNNL-CompBio/",
                             "panSEA/shiny-app/data/ksdb_20231101.csv"))
     if (organism %in% unique(na.omit(ksdb$KIN_ORGANISM)) &
         organism %in% unique(na.omit(ksdb$SUB_ORGANISM))) {

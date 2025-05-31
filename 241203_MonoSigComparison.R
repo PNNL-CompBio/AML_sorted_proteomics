@@ -35,12 +35,12 @@ compareSigs <- function(path.list, venn.names = names(path.list),
 
   # Venn diagram
   setwd(fname)
-  my.venn <- ggvenn::ggvenn(venn.data, show_percentage=FALSE, text_size=6, 
+  my.venn <- ggvenn::ggvenn(venn.data, show_percentage=FALSE, text_size=10, 
                             fill_color=fillVals)
   ggplot2::ggsave("venn_diagram.pdf",my.venn, 
                   width = 7, height = 7)
   
-  my.venn <- ggvenn::ggvenn(sig.venn.data, show_percentage=FALSE, text_size=6,
+  my.venn <- ggvenn::ggvenn(sig.venn.data, show_percentage=FALSE, text_size=10,
                             fill_color=fillVals)
   ggplot2::ggsave("venn_diagram_significant.pdf",my.venn, 
                   width = 7, height = 7)
@@ -94,9 +94,10 @@ compareSigs <- function(path.list, venn.names = names(path.list),
   write.csv(corr.mat, "correlations.csv")
   
   # plot correlation matrix
-  corr.mat.plot <- ggcorrplot::ggcorrplot(corr.mat)
-  ggplot2::ggsave("correlation_matrix.pdf", 
-                  corr.mat.plot, width = 7, height = 7)
+  corr.mat.plot <- ggcorrplot::ggcorrplot(corr.mat, lab_size=24, 
+                                          legend.title="Pearson r")
+  ggplot2::ggsave("correlation_matrix_v2.pdf", 
+                  corr.mat.plot, width = 3, height = 3)
 
   
   #try another approach
@@ -186,7 +187,7 @@ sig.paths <- list("Sorted" = "analysis/DIA_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/
                   "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv",
                   "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
                   "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv")
-compareSigs(sig.paths, fname = "Monocyte_vs_progenitor_signatures_beadOnly_2025-01-20")
+compareSigs(sig.paths, fname = "Monocyte_vs_progenitor_signatures_beadOnly_2025-01-24")
 
 #### 3. flow type ####
 # since MSC was only flow sorted, remove MSC from sort type comparisons

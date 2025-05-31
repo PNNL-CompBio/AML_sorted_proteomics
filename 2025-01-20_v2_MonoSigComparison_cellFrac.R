@@ -35,36 +35,16 @@ evalOneMonoSig <- function(global.df100, frac.df, temp.sig, BeatAML, type="rna",
         temp.test.df$N <- nrow(temp.wv)
         temp.test.df$N_CD14_Pos <- nrow(temp.wv[grepl("CD14", temp.wv$Sample),]$WV)
         temp.test.df$N_CD34_Pos <- nrow(temp.wv[grepl("CD34", temp.wv$Sample),]$WV)
-        
-        # compare to known cell fractions
-        temp.wv2 <- temp.wv[grepl("CD14",temp.wv$Sample),]
-        temp.wv2$labId <- sub("_.*","",temp.wv2$Sample)
-        temp.wv2 <- temp.wv2[,c("labId","WV")]
-        temp.wv.frac <- merge(frac.df, temp.wv2, by="labId")
-        if (nrow(temp.wv.frac) > 2) {
-          frac.corr <- cor.test(temp.wv.frac$WV, temp.wv.frac[,2], 
-                                method = "pearson")
-          N <- nrow(temp.wv.frac)
-          Pearson.est <- frac.corr$estimate
-          Pearson.p <-frac.corr$p.value
-          frac.corr <- cor.test(temp.wv.frac$WV, temp.wv.frac[,2], 
-                                method = "spearman")
-          Spearman.est <- frac.corr$estimate
-          Spearman.p <-frac.corr$p.value
-          frac.corr.result <- data.frame(Pearson.est, Pearson.p, 
-                                         Spearman.est, Spearman.p, N)
         } else {
           frac.corr.result <- data.frame()
         }
       } else {
         temp.wv <- data.frame()
         temp.test.df <- data.frame()
-        frac.corr.result <- data.frame()
       }
     } else {
       temp.wv <- data.frame()
       temp.test.df <- data.frame()
-      frac.corr.result <- data.frame()
     }
     
     ## Beat AML
@@ -80,14 +60,40 @@ evalOneMonoSig <- function(global.df100, frac.df, temp.sig, BeatAML, type="rna",
                                      sample.names="Barcode.ID",
                                      weight.values=colnames(temp.sig2)[2], 
                                      scatter.plots = FALSE)
+        DMEA.result.Spearman <- panSEA::mDMEA(BeatAML$drug, gmt, list(expr), 
+                                     list(temp.sig2), types=type,
+                                     sample.names="Barcode.ID",
+                                     weight.values=colnames(temp.sig2)[2], 
+                                     scatter.plots = FALSE, 
+                                     rank.metric="Spearman.est")
         corr.df <- DMEA.result$all.results[[1]]$corr.result
+        
+        # compare to known cell fractions
+        temp.wv2 <- DMEA.result$all.results[[1]]$WV.scores
+        temp.wv.frac <- merge(frac.df, temp.wv2, by="Barcode.ID")
+        if (nrow(temp.wv.frac) > 2) {
+          frac.corr <- cor.test(temp.wv.frac$WV, temp.wv.frac[,2], 
+                                method = "pearson")
+          N <- nrow(temp.wv.frac)
+          Pearson.est <- frac.corr$estimate
+          Pearson.p <-frac.corr$p.value
+          frac.corr <- cor.test(temp.wv.frac$WV, temp.wv.frac[,2], 
+                                method = "spearman")
+          Spearman.est <- frac.corr$estimate
+          Spearman.p <-frac.corr$p.value
+          frac.corr.result <- data.frame(Pearson.est, Pearson.p, 
+                                         Spearman.est, Spearman.p, N)
       } else {
         corr.df <- data.frame()
         DMEA.result <- list()
+        DMEA.result.Spearman <- list()
+        frac.corr.result <- data.frame()
       }
     } else {
       corr.df <- data.frame()
       DMEA.result <- list()
+      DMEA.result.Spearman <- list()
+      frac.corr.result <- data.frame()
     }
   } else {
     temp.wv <- data.frame()
@@ -95,10 +101,12 @@ evalOneMonoSig <- function(global.df100, frac.df, temp.sig, BeatAML, type="rna",
     corr.df <- data.frame()
     frac.corr.result <- data.frame()
     DMEA.result <- list()
+    DMEA.result.Spearman <- list()
   }
   
   return(list(wv = temp.wv, test = temp.test.df, drug.corr = corr.df, 
-              frac.corr = frac.corr.result, DMEA = DMEA.result))
+              frac.corr = frac.corr.result, 
+              DMEA = DMEA.result, DMEA.Spearman=DMEA.result.Spearman))
 }
 
 evalMonoSig <- function(global.df100, frac.df, sig.matrix, BeatAML, 
@@ -110,11 +118,14 @@ evalMonoSig <- function(global.df100, frac.df, sig.matrix, BeatAML,
   frac.corr.df <- data.frame()
   sig.matrix$Gene <- rownames(sig.matrix)
   DMEA.results <- list()
+  DMEA.results.Spearman <- list()
   for (i in 1:(ncol(sig.matrix)-1)) {
+    cat("evaluating",names(sig.matrix)[i],"as",types[i],"\n")
     temp.result <- evalOneMonoSig(global.df100, frac.df, 
                                   sig.matrix[,c(i,ncol(sig.matrix))],
                                   BeatAML, types[i], gmt)
     DMEA.results[[names(sig.matrix)[i]]] <- temp.result$DMEA
+    DMEA.results.Spearman[[names(sig.matrix)[i]]] <- temp.result$DMEA.Spearman
     temp.wv.df <- temp.result$wv
     temp.test.df <- temp.result$test
     temp.drug.corr.df <- temp.result$drug.corr
@@ -132,7 +143,8 @@ evalMonoSig <- function(global.df100, frac.df, sig.matrix, BeatAML,
   p.df <- test.df[test.df$variable == "p.value",]
   
   return(list(wv = wv.df, p = p.df, drug.corr = drug.corr.df, 
-              frac.corr = frac.corr.df, DMEA = DMEA.results))
+              frac.corr = frac.corr.df, DMEA = DMEA.results,
+              DMEA.Spearman = DMEA.results.Spearman))
 }
 
 compareSigs <- function(global.df100, frac.df, sigs, 
@@ -144,6 +156,7 @@ compareSigs <- function(global.df100, frac.df, sigs,
                                 value.var = value.var)
   rownames(sig.matrix) <- sig.matrix$Gene
   sig.matrix$Gene <- NULL
+  sig.matrix <- sig.matrix[,names(sigs)]
   
   # test signature matrix
   sigResults <- evalMonoSig(global.df100, frac.df, sig.matrix, BeatAML,types,gmt)
@@ -167,19 +180,13 @@ compareSigs <- function(global.df100, frac.df, sigs,
   sigOrder <- p.df[order(p.df$value),]$Signature
   ggplot(p.df, aes(x=Signature, y=-log(value, base=10), 
                    fill = Signature, alpha = 0.5)) + 
-    geom_col() + theme_classic() + ylab("-Log(P-value)") + 
+    geom_col() + theme_classic(base_size = 12) + ylab("-Log(P-value)") + 
     ggplot2::scale_x_discrete(limits = sigOrder) +
     scale_fill_manual(values=fillVals, 
                       breaks=c("Sorted","Lasry","Triana","van Galen"))+
     ggtitle("T-test: Monocyte scores are higher in CD14+ samples")
   ggsave("pValue_DIA_WV_signatureFill.pdf", width = 5, height = 5)
-  ggplot(p.df, aes(x=Signature, y=-log(value, base=10), 
-                   fill = Significance, alpha = 0.5)) + 
-    geom_col() + theme_classic() + ylab("-Log(P-value)") + 
-    ggplot2::scale_x_discrete(limits = sigOrder) +
-    scale_fill_manual(values=c("red","grey"), breaks=c("p <= 0.05", "p > 0.05"))+
-    ggtitle("T-test: Monocyte scores are higher in CD14+ samples")
-  ggsave("pValue_DIA_WV.pdf", width = 5, height = 5)
+  
   p.df$`-Log(P-value)` <- -log(p.df$value, base=10)
   plot.df <- p.df
   plot.df$alpha <- 0.5
@@ -190,159 +197,74 @@ compareSigs <- function(global.df100, frac.df, sigs,
           title="Monocytic signatures distinguish CD14+ and CD34+ samples",
           fname="pValue_DIA_WV_signatureFill_circBarPlot.pdf")
   
-  if ("Drug" %in% colnames(drug.corr.df)) {
-    doi <- c("Azacytidine", "Venetoclax", "Azacytidine - Venetoclax")
-    drug.corr.df$`Drug Treatment` <- NA
-    drug.corr.df[drug.corr.df$Drug == "Azacytidine",]$`Drug Treatment` <- "Aza"
-    drug.corr.df[drug.corr.df$Drug == "Azacytidine - Venetoclax",]$`Drug Treatment` <- "Aza + Ven"
-    drug.corr.df[drug.corr.df$Drug == "Venetoclax",]$`Drug Treatment` <- "Ven"
-    drug.corr.df$Significance <- "Adjusted p > 0.05"
-    if (any(drug.corr.df$Pearson.q <= 0.05)){
-      drug.corr.df[drug.corr.df$Pearson.q <= 0.05,]$Significance <- "Adjusted p <= 0.05" 
+  rank.metrics <- c("Pearson.est", "Spearman.est")
+  for (i in rank.metrics) {
+    descr <- stringr::str_split_1(i, "[.]")[1]
+    if ("Drug" %in% colnames(drug.corr.df)) {
+      doi <- c("Azacytidine", "Venetoclax", "Azacytidine - Venetoclax")
+      drug.corr.df$`Drug Treatment` <- NA
+      drug.corr.df[drug.corr.df$Drug == "Azacytidine",]$`Drug Treatment` <- "Aza"
+      drug.corr.df[drug.corr.df$Drug == "Azacytidine - Venetoclax",]$`Drug Treatment` <- "Aza + Ven"
+      drug.corr.df[drug.corr.df$Drug == "Venetoclax",]$`Drug Treatment` <- "Ven"
+      doi.names <- c("Aza", "Aza + Ven", "Ven")
+      
+      # aza, aza + ven, ven correlations
+      plot.df <- drug.corr.df[drug.corr.df$Drug %in% doi,]
+      plot.df$rank <- plot.df[,i]
+      sigOrder <- na.omit(unique(plot.df[order(plot.df$rank, decreasing=TRUE),]$Signature))
+      #sigOrder <- av.df[order(av.df$rank, decreasing=TRUE),]$Signature
+      ggplot(na.omit(plot.df), aes(x=Signature, y=rank, fill = Signature, alpha=0.5)) + 
+        geom_col() + theme_minimal(base_size = 12) + ylab(paste0(descr," Correlation Estimate")) + 
+        facet_wrap(~ `Drug Treatment`) +
+        ggplot2::scale_x_discrete(limits = sigOrder) +
+        theme(axis.text.x = element_text(angle = 45, vjust=1, hjust=1)) +
+        scale_fill_manual(values=fillVals, 
+                          breaks=c("Sorted","Lasry","Triana","van Galen"))+
+        ggtitle("Monocytic signatures predict drug sensitivity")
+      ggsave(paste0("drugCorr_DIA_WV_signatureFill_",descr,".pdf"), width = 5, height = 5)
+      
+      for (j in doi.names) {
+        plot.df <- drug.corr.df[drug.corr.df$`Drug Treatment` == j,]
+        plot.df$rank <- plot.df[,i]
+        sigOrder <- na.omit(unique(plot.df[order(plot.df$rank, decreasing=TRUE),]$Signature))
+        plot.df$alpha <- 0.5
+        circBar(na.omit(plot.df), x="Signature", y = "rank", fill = "Signature", 
+                alpha = "alpha", ymin = 0, ymax = 1, alpha_range=0.5, 
+                ytick_yScale = 2/3, ytick_yShift = 0, fillVals=fillVals,
+                title=paste("Monocytic signatures predict", j, "sensitivity"),
+                fname=paste0(j,"_Corr_DIA_WV_signatureFill_circBarPlot_",descr,".pdf"))
+        ggplot(plot.df, aes(x=Signature, y=rank, fill = Signature, alpha=0.5)) + 
+          geom_col() + theme_classic(base_size = 12) + 
+          ylab(paste(descr, "Correlation Estimate")) + 
+          ggplot2::scale_x_discrete(limits = sigOrder) +
+          scale_fill_manual(values=fillVals, 
+                            breaks=c("Sorted","Lasry","Triana","van Galen"))+
+          ggtitle(paste("Monocytic signatures predict", j, "sensitivity"))
+        ggsave(paste0(j,"_Corr_DIA_WV_signatureFill_barPlot_",descr,".pdf"), width = 5, height = 5)
+      }
     }
-    drug.corr.df$Significance <- factor(drug.corr.df$Significance,
-                                        levels=c("Adjusted p <= 0.05", "Adjusted p > 0.05"))
-    plot.df <- drug.corr.df[drug.corr.df$Drug %in% doi,]
-    av.df <- drug.corr.df[drug.corr.df$Drug == "Azacytidine - Venetoclax",]
-    #sigOrder <- unique(plot.df[order(plot.df$Pearson.est, decreasing=TRUE),]$Signature)
-    sigOrder <- av.df[order(av.df$Pearson.est, decreasing=TRUE),]$Signature
-    ggplot(plot.df, aes(x=Signature, y=Pearson.est, fill = Significance, alpha=0.5)) + 
-      geom_col() + theme_minimal() + ylab("Pearson Correlation Estimate") + 
-      facet_wrap(~ `Drug Treatment`) +
-      ggplot2::scale_x_discrete(limits = sigOrder) +
-      theme(axis.text.x = element_text(angle = 45, vjust=1, hjust=1)) +
-      scale_fill_manual(values=c("red","grey"), breaks=c("Adjusted p <= 0.05", "Adjusted p > 0.05"))+
-      ggtitle("Monocytic signatures predict drug sensitivity")
-    ggsave("drugCorr_DIA_WV.pdf", width = 5, height = 5)
-    ggplot(plot.df, aes(x=Signature, y=Pearson.est, fill = Signature, alpha=0.5)) + 
-      geom_col() + theme_minimal() + ylab("Pearson Correlation Estimate") + 
-      facet_wrap(~ `Drug Treatment`) +
-      ggplot2::scale_x_discrete(limits = sigOrder) +
-      theme(axis.text.x = element_text(angle = 45, vjust=1, hjust=1)) +
-      scale_fill_manual(values=fillVals, 
-                        breaks=c("Sorted","Lasry","Triana","van Galen"))+
-      ggtitle("Monocytic signatures predict drug sensitivity")
-    ggsave("drugCorr_DIA_WV_signatureFill.pdf", width = 5, height = 5)
     
-    plot.df <- drug.corr.df[drug.corr.df$Drug == "Venetoclax",]
-    sigOrder <- unique(plot.df[order(plot.df$Pearson.est, decreasing=TRUE),]$Signature)
-    ggplot(plot.df, aes(x=Signature, y=Pearson.est, fill = Significance, alpha=0.5)) + 
-      geom_col() + theme_classic() + ylab("Pearson Correlation Estimate") + 
-      ggplot2::scale_x_discrete(limits = sigOrder) +
-      scale_fill_manual(values=c("red","grey"), breaks=c("Adjusted p <= 0.05", "Adjusted p > 0.05"))+
-      ggtitle("Monocytic signatures predict Venetoclax sensitivity")
-    ggsave("VenCorr_DIA_WV.pdf", width = 5, height = 5)
-    ggplot(plot.df, aes(x=Signature, y=Pearson.est, fill = Signature, alpha=0.5)) + 
-      geom_col() + theme_classic() + ylab("Pearson Correlation Estimate") + 
+    plot.df <- frac.corr.df
+    plot.df$rank <- plot.df[,i]
+    sigOrder <- plot.df[order(plot.df$rank, decreasing=TRUE),]$Signature
+    ggplot(plot.df, aes(x=Signature, y=rank, fill = Signature, alpha=0.5)) + 
+      geom_col() + theme_classic(base_size = 12) + ylab(paste(descr, "Correlation Estimate")) + 
       ggplot2::scale_x_discrete(limits = sigOrder) +
       scale_fill_manual(values=fillVals, 
                         breaks=c("Sorted","Lasry","Triana","van Galen"))+
-      ggtitle("Monocytic signatures predict Venetoclax sensitivity")
-    ggsave("VenCorr_DIA_WV_signatureFill.pdf", width = 5, height = 5)
+      ggtitle("Monocytic signatures predict monocyte fraction")
+    ggsave(paste0("fracCorr_DIA_WV_",descr,"_signatureFill.pdf"), width = 5, height = 5)
     plot.df$alpha <- 0.5
-    circBar(plot.df, x="Signature", y = "Pearson.est", fill = "Signature", 
+    circBar(plot.df, x="Signature", y = "rank", fill = "Signature", 
             alpha = "alpha", ymin = 0, ymax = 1, alpha_range=0.5, 
-            fillVals=fillVals,
-            title="Monocytic signatures predict Venetoclax sensitivity",
-            fname="VenCorr_DIA_WV_signatureFill_circBarPlot.pdf")
-    
-    plot.df <- drug.corr.df[drug.corr.df$Drug == "Azacytidine - Venetoclax",]
-    sigOrder <- unique(plot.df[order(plot.df$Pearson.est, decreasing=TRUE),]$Signature)
-    ggplot(plot.df, aes(x=Signature, y=Pearson.est, fill = Significance, alpha=0.5)) + 
-      geom_col() + theme_classic() + ylab("Pearson Correlation Estimate") + 
-      ggplot2::scale_x_discrete(limits = sigOrder) +
-      scale_fill_manual(values=c("red","grey"), breaks=c("Adjusted p <= 0.05", "Adjusted p > 0.05"))+
-      ggtitle("Monocytic signatures predict Aza + Ven sensitivity")
-    ggsave("AzaVenCorr_DIA_WV.pdf", width = 5, height = 5)
-    ggplot(plot.df, aes(x=Signature, y=Pearson.est, fill = Signature, alpha=0.5)) + 
-      geom_col() + theme_classic() + ylab("Pearson Correlation Estimate") + 
-      ggplot2::scale_x_discrete(limits = sigOrder) +
-      scale_fill_manual(values=fillVals, 
-                        breaks=c("Sorted","Lasry","Triana","van Galen"))+
-      ggtitle("Monocytic signatures predict Aza + Ven sensitivity")
-    ggsave("AzaVenCorr_DIA_WV_signatureFill.pdf", width = 5, height = 5)
-    plot.df$alpha <- 0.5
-    circBar(plot.df, x="Signature", y = "Pearson.est", fill = "Signature", 
-            alpha = "alpha", ymin = 0, ymax = 1, alpha_range=0.5, 
-            fillVals=fillVals,
-            title="Monocytic signatures predict Aza + Ven sensitivity",
-            fname="AzaVenCorr_DIA_WV_signatureFill_circBarPlot.pdf")
-    
-    plot.df <- drug.corr.df[drug.corr.df$Drug == "Azacytidine",]
-    sigOrder <- unique(plot.df[order(plot.df$Pearson.est, decreasing=TRUE),]$Signature)
-    ggplot(drug.corr.df[drug.corr.df$Drug == "Azacytidine",], 
-           aes(x=Signature, y=Pearson.est, 
-               fill = Significance, alpha=0.5)) + 
-      geom_col() + theme_classic() + ylab("Pearson Correlation Estimate") + 
-      ggplot2::scale_x_discrete(limits = sigOrder) +
-      scale_fill_manual(values=c("red","grey"), breaks=c("Adjusted p <= 0.05", "Adjusted p > 0.05"))+
-      ggtitle("Monocytic signatures predict Azacitidine sensitivity")
-    ggsave("AzaCorr_DIA_WV.pdf", width = 5, height = 5)
-    ggplot(drug.corr.df[drug.corr.df$Drug == "Azacytidine",], 
-           aes(x=Signature, y=Pearson.est, 
-               fill = Signature, alpha=0.5)) + 
-      geom_col() + theme_classic() + ylab("Pearson Correlation Estimate") + 
-      ggplot2::scale_x_discrete(limits = sigOrder) +
-      scale_fill_manual(values=fillVals, 
-                        breaks=c("Sorted","Lasry","Triana","van Galen"))+
-      ggtitle("Monocytic signatures predict Azacitidine sensitivity")
-    ggsave("AzaCorr_DIA_WV_signatureFill.pdf", width = 5, height = 5)
-    plot.df$alpha <- 0.5
-    circBar(plot.df, x="Signature", y = "Pearson.est", fill = "Signature", 
-            alpha = "alpha", ymin = 0, ymax = 1, alpha_range=0.5, 
-            fillVals=fillVals,
-            title="Monocytic signatures predict Azacitidine sensitivity",
-            fname="AzaCorr_DIA_WV_signatureFill_circBarPlot.pdf")
+            ytick_yScale = 2/3, ytick_yShift = 0, fillVals=fillVals,
+            title="Monocytic signatures predict monocyte fraction",
+            fname=paste0("fracCorr_DIA_WV_signatureFill_circBarPlot_",descr,".pdf"))
   }
-  
-  frac.corr.df$Significance <- "p > 0.05"
-  if (any(frac.corr.df$Pearson.p <= 0.05)) {
-    frac.corr.df[frac.corr.df$Pearson.p <= 0.05,]$Significance <- "p <= 0.05" 
-  }
-  frac.corr.df$Significance <- factor(frac.corr.df$Significance,
-                                      levels=c("p <= 0.05", "p > 0.05"))
-  sigOrder <- frac.corr.df[order(frac.corr.df$Pearson.est, decreasing=TRUE),]$Signature
-  ggplot(frac.corr.df, aes(x=Signature, y=Pearson.est,
-                           fill = Significance, alpha=0.5)) + 
-    geom_col() + theme_classic() + ylab("Pearson Correlation Estimate") + 
-    ggplot2::scale_x_discrete(limits = sigOrder) +
-    scale_fill_manual(values=c("red","grey"), breaks=c("p <= 0.05", "p > 0.05"))+
-    ggtitle("Monocytic signatures predict monocyte fraction")
-  ggsave("fracCorr_DIA_WV_Pearson.pdf", width = 5, height = 5)
-  ggplot(frac.corr.df, aes(x=Signature, y=Pearson.est,
-                           fill = Signature, alpha=0.5)) + 
-    geom_col() + theme_classic() + ylab("Pearson Correlation Estimate") + 
-    ggplot2::scale_x_discrete(limits = sigOrder) +
-    scale_fill_manual(values=fillVals, 
-                      breaks=c("Sorted","Lasry","Triana","van Galen"))+
-    ggtitle("Monocytic signatures predict monocyte fraction")
-  ggsave("fracCorr_DIA_WV_Pearson_signatureFill.pdf", width = 5, height = 5)
-  
-  frac.corr.df$Significance <- "p > 0.05"
-  if (any(frac.corr.df$Spearman.p <= 0.05)) {
-    frac.corr.df[frac.corr.df$Spearman.p <= 0.05,]$Significance <- "p <= 0.05" 
-  }
-  frac.corr.df$Significance <- factor(frac.corr.df$Significance,
-                                      levels=c("p <= 0.05", "p > 0.05"))
-  sigOrder <- frac.corr.df[order(frac.corr.df$Spearman.est, decreasing=TRUE),]$Signature
-  ggplot(frac.corr.df, aes(x=Signature, y=Spearman.est,
-                           fill = Significance, alpha=0.5)) + 
-    geom_col() + theme_classic() + ylab("Spearman Correlation Estimate") + 
-    ggplot2::scale_x_discrete(limits = sigOrder) +
-    scale_fill_manual(values=c("red","grey"), breaks=c("p <= 0.05", "p > 0.05"))+
-    ggtitle("Monocytic signatures predict monocyte fraction")
-  ggsave("fracCorr_DIA_WV_Spearman.pdf", width = 5, height = 5)
-  ggplot(frac.corr.df, aes(x=Signature, y=Spearman.est,
-                           fill = Signature, alpha=0.5)) + 
-    geom_col() + theme_classic() + ylab("Spearman Correlation Estimate") + 
-    ggplot2::scale_x_discrete(limits = sigOrder) +
-    scale_fill_manual(values=fillVals, 
-                      breaks=c("Sorted","Lasry","Triana","van Galen"))+
-    ggtitle("Monocytic signatures predict monocyte fraction")
-  ggsave("fracCorr_DIA_WV_Spearman_signatureFill.pdf", width = 5, height = 5)
   
   return(list(wv = wv.df, p = p.df, drug.corr = drug.corr.df, 
-              frac.corr = frac.corr.df, DMEA = sigResults$DMEA))
+              frac.corr = frac.corr.df, DMEA = sigResults$DMEA,
+              DMEA.Spearman = sigResults$DMEA.Spearman))
 }
 
 load_not_norm_BeatAML_for_DMEA3 <- function(BeatAML.path = "BeatAML_DMEA_inputs_not_normalized",
@@ -468,37 +390,47 @@ load_not_norm_BeatAML_for_DMEA3 <- function(BeatAML.path = "BeatAML_DMEA_inputs_
 }
 setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
 setwd("data")
-sorted.patients <- c("18-00105", "21-00839", "22-00571", "22-00117", "16-01184",
-                     "19-00074", "18-00103", "21-00432", "17-01060", "22-00251")
-BeatAML <- load_not_norm_BeatAML_for_DMEA3(exclude.samples = sorted.patients)
-gmt.drug <- readRDS("gmt_BeatAML_drug_MOA_2024-02-22.rds")
-drug.info <- read.csv("~/OneDrive - PNNL/Documents/PTRC2/BeatAML_single_drug_moa_2025-01-20.csv",
-                      stringsAsFactors=FALSE, fileEncoding="latin1")
-gmt.drug <- DMEA::as_gmt(drug.info, sep=", ")
-saveRDS(gmt.drug, "gmt_BeatAML_drug_MOA_2025-01-20.rds")
+
+#gmt.drug <- readRDS("gmt_BeatAML_drug_MOA_2024-02-22.rds")
+# drug.info <- read.csv("~/OneDrive - PNNL/Documents/PTRC2/BeatAML_single_drug_moa_2025-01-20.csv",
+#                       stringsAsFactors=FALSE, fileEncoding="latin1")
+# gmt.drug <- DMEA::as_gmt(drug.info, sep=", ")
+# saveRDS(gmt.drug, "gmt_BeatAML_drug_MOA_2025-01-20.rds")
+gmt.drug <- readRDS("gmt_BeatAML_drug_MOA_2025-01-20.rds")
 
 # load sorted proteomics
-synapser::synLogin()
-global.df <- read.csv(synapser::synGet("syn58895933")$path) # DIA
-global.df <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.75)] # 36 out of 48 samples are kept
-outliers <- c("X00839_CD34plusFlow", "X00117_CD34plus", 
-              "X00432_CD14plus", "X00251_CD14plus", "X00105_CD14plusFlow")
-# syn.test <- synapser::synGet("syn58914135") # for some reason, can't access pre-filtered version ???
-rownames(global.df) <- global.df$Gene
-global.df$Gene <- NULL
-global.df <- as.data.frame(t(global.df))
-global.df$Sample <- rownames(global.df)
-global.df <- global.df[,c("Sample", colnames(global.df)[1:(ncol(global.df)-1)])]
-global.df <- global.df[!(global.df$Sample %in% outliers),]
-global.df100 <- global.df[,colSums(is.na(global.df)) == 0]
-global.df100 <- global.df100[!grepl("flow",global.df100$Sample, ignore.case=TRUE),] # 17 samples
+# synapser::synLogin()
+# global.df <- read.csv(synapser::synGet("syn58895933")$path) # DIA
+# global.df <- global.df[ , which(colMeans(!is.na(global.df)) >= 0.75)] # 36 out of 48 samples are kept
+# outliers <- c("X00839_CD34plusFlow", "X00117_CD34plus", 
+#               "X00432_CD14plus", "X00251_CD14plus", "X00105_CD14plusFlow")
+# # syn.test <- synapser::synGet("syn58914135") # for some reason, can't access pre-filtered version ???
+# rownames(global.df) <- global.df$Gene
+# global.df$Gene <- NULL
+# global.df <- as.data.frame(t(global.df))
+# global.df$Sample <- rownames(global.df)
+# global.df <- global.df[,c("Sample", colnames(global.df)[1:(ncol(global.df)-1)])]
+# global.df <- global.df[!(global.df$Sample %in% outliers),]
+# global.df100 <- global.df[,colSums(is.na(global.df)) == 0]
+# global.df100 <- global.df100[!grepl("flow",global.df100$Sample, ignore.case=TRUE),] # 17 samples
 
 # load sorted proteomics signature
-sig.paths <- list("Sorted" = "analysis/DIA_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+sig.paths <- list("Sorted" = "analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
                   "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv",
                   "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
                   "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv")
 #cd14.sig <- na.omit(read.csv(synapser::synGet("syn64543462")$path)) # DIA
+
+dia.wo.out <- readRDS("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/DIA_2batches_noOutliers.rds")
+
+global.df <- dia.wo.out$global
+#rownames(global.df) <- global.df$Gene
+#global.df$Gene <- NULL
+global.df <- as.data.frame(t(global.df))
+global.df$Sample <- rownames(global.df)
+global.df <- global.df[,c("Sample", colnames(global.df)[1:(ncol(global.df)-1)])]
+global.df100 <- global.df[,colSums(is.na(global.df)) == 0]
+global.df100 <- global.df100[!grepl("_f_",global.df100$Sample, ignore.case=TRUE),] # 39 samples out of 51, 4417 proteins out of 6888
 
 # import signatures and filter
 sigs <- list()
@@ -507,6 +439,37 @@ for (i in names(sig.paths)) {
   sigs[[i]] <- read.csv(sig.paths[[i]])
   sigs[[i]] <- na.omit(sigs[[i]][sigs[[i]]$adj.P.Val <= 0.05,c("Gene","Log2FC")])
 }
+
+venn.list <- list()
+colorOrder <- c("Sorted","Lasry","Triana","van Galen")
+for (i in colorOrder) {
+  venn.list[[i]] <- unique(sigs[[i]]$Gene)
+}
+library(ggvenn)
+
+ggvenn::ggvenn(venn.list, show_percentage = FALSE, fill_color=fillVals, set_name_size=5, text_size=5)
+ggsave("mono_vs_prog_signature_vennDiagram.pdf",width=7, height=7)
+
+# run correlations between signatures
+sig.df <- data.table::rbindlist(sigs, use.names=TRUE, idcol="Signature")
+sig.df <- reshape2::dcast(sig.df, Gene ~ Signature, value.var="Log2FC")
+corr <- data.frame()
+for (i in colorOrder) {
+  otherSigs <- colorOrder[colorOrder != i]
+  temp.input <- sig.df[,c("Gene",i,otherSigs)]
+  temp.corr <- DMEA::rank_corr(temp.input,plots=FALSE)$result
+  temp.corr[nrow(temp.corr)+1,] <- c(i,1,rep(NA, ncol(temp.corr)-2))
+  temp.corr$Signature <- i
+  corr <- rbind(corr, temp.corr)
+}
+write.csv(corr, "mono_vs_prog_signature_correlations.csv", row.names=FALSE) # all significant
+write.csv(corr, "mono_vs_prog_signature_correlations_withSelfCorr.csv", row.names=FALSE) # all significant
+#maxAbsEst <- max(abs(corr$Pearson.est))
+corr$Pearson.est <- as.numeric(corr$Pearson.est)
+ggplot(corr, aes(x=Drug, y=Signature, fill=Pearson.est)) + geom_tile() + 
+  scale_fill_gradient2(limits=c(-1,1), low="blue", mid="grey", high="red")+labs(fill="Pearson r")+
+  theme_minimal(base_size=16) + theme(axis.text=element_text(vjust=1, hjust=1, angle=45), axis.title=element_blank())
+ggsave("mono_vs_prog_signature_correlations_withSelfCorr.pdf", width=4, height=2.5)
 
 # load cell fraction data
 base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/data/clinical_metadata/"
@@ -522,21 +485,102 @@ num.cols <- colnames(dplyr::select_if(patient.meta, is.numeric))
 num.meta <- dplyr::distinct(patient.meta[,c(key.cols, num.cols)])
 num.meta <- merge(patient.key, num.meta, by = key.cols)
 num.meta <- num.meta[,c("labId", num.cols[2:length(num.cols)])] # leave out dbgap_subject_id from numeric columns
-frac.meta <- na.omit(num.meta[,c("labId", "%.Monocytes.in.PB")])
-frac.meta$labId <- sub(".*-","X",frac.meta$labId)
-#sortedIDs <- unique(sub("_.*","",global.df100$Sample))
-#frac.meta2 <- frac.meta[frac.meta$labId %in% sortedIDs,] # 7
-#frac.meta2 <- na.omit(frac.meta2) # 4
+frac.meta <- na.omit(num.meta[,c("labId", "%.Monocytes.in.PB")]) # 625 samples
+colnames(frac.meta)[1] <- "Barcode.ID"
+#frac.meta$labId <- sub(".*-","X",frac.meta$labId) # don't need to exclude sorted patients here because they are already excluded from global data
 
-gmt <- readRDS("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/data/gmt_BeatAML_drug_MOA_2024-02-22.rds")
 setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-01-20")
-setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-01-20")
+dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
+setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
+
+# sorted.patients <- c("18-00105", "21-00839", "22-00571", "22-00117", "16-01184",
+#                      "19-00074", "18-00103", "21-00432", "17-01060", "22-00251")
+sorted.patients <- unique(dia.wo.out$meta$patient)
+BeatAML <- load_not_norm_BeatAML_for_DMEA3(exclude.samples=sorted.patients)
 
 # evaluate signature
-evalResults <- compareSigs(global.df100, frac.meta2, sigs, BeatAML = BeatAML, types=c("global", "rna", "rna", "rna"), gmt = gmt.drug) 
+evalResults <- compareSigs(global.df100, frac.meta, sigs, BeatAML = BeatAML, types=c("global", "rna", "rna", "rna"), gmt = gmt.drug) 
 write.csv(evalResults$wv, "wv.csv", row.names = FALSE)
 write.csv(evalResults$p, "pValues.csv", row.names = FALSE)
 write.csv(evalResults$drug.corr, "drugCorrelations.csv", row.names = FALSE)
 write.csv(evalResults$frac.corr, "cellFractionCorrelations.csv", row.names = FALSE)
 saveRDS(evalResults$DMEA, "DMEA.rds")
+saveRDS(evalResults$DMEA.Spearman, "DMEA_Spearman.rds")
+all.DMEA.files <- list()
+for (i in names(sigs)) {
+  DMEA.files <- list("DMEA_WV_results.csv" =
+                       evalResults$DMEA[[i]]$all.results[[1]]$WV.scores,
+                     "DMEA_unused_weights.csv" =
+                       evalResults$DMEA[[i]]$all.results[[1]]$unused.weights,
+                     "DMEA_results.csv" =
+                       evalResults$DMEA[[i]]$all.results[[1]]$result,
+                     "DMEA_results_Spearman.csv" =
+                       evalResults$DMEA.Spearman[[i]]$all.results[[1]]$result,
+                     "DMEA_correlation_results.csv" = 
+                       evalResults$DMEA[[i]]$all.results[[1]]$corr.result,
+                     "DMEA_volcano_plot.pdf" =
+                       evalResults$DMEA[[i]]$all.results[[1]]$volcano.plot,
+                     "DMEA_volcano_plot_Spearman.pdf" =
+                       evalResults$DMEA.Spearman[[i]]$all.results[[1]]$volcano.plot) 
+  all.DMEA.files[[i]] <- DMEA.files
+}
+save_to_synapse_v2(all.DMEA.files#, "syn64606612"
+                   )
+
+# redo plots
+setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+#dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
+setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
+drug.corr.df <- read.csv("drugCorrelations.csv")
+frac.corr.df <- read.csv("cellFractionCorrelations.csv")
+
+fillVals = RColorBrewer::brewer.pal(length(sigs), "Set2")
+rank.metrics <- c("Pearson.est", "Spearman.est")
+for (i in rank.metrics) {
+  descr <- stringr::str_split_1(i, "[.]")[1]
+  if (descr == "Pearson") {
+    ylab <- "Pearson r"
+  } else {
+    ylab <- "Spearman rho"
+  }
+  
+  # drug sensitivity
+  j <- "Aza + Ven"
+  plot.df <- drug.corr.df[drug.corr.df$`Drug.Treatment` == j,]
+  plot.df$rank <- plot.df[,i]
+  sigOrder <- na.omit(unique(plot.df[order(plot.df$rank, decreasing=TRUE),]$Signature))
+  # ggplot(plot.df, aes(x=Signature, y=rank, fill = Signature, alpha=0.5)) + 
+  #   geom_col() + theme_classic(base_size = 12) + 
+  #   ylab(ylab) + 
+  #   ggplot2::scale_x_discrete(limits = sigOrder) +
+  #   scale_fill_manual(values=fillVals, 
+  #                     breaks=c("Sorted","Lasry","Triana","van Galen"))+
+  #   ggtitle(paste("Monocytic signatures predict", j, "sensitivity"))
+  # ggsave(paste0(j,"_Corr_DIA_WV_signatureFill_barPlot_",descr,"_", Sys.Date(), ".pdf"), width = 5, height = 3)
+  
+  ggplot(plot.df, aes(x=Signature, y=rank, fill = Signature)) + 
+    geom_col(alpha=0.5, show.legend=FALSE) + theme_classic(base_size = 12) + 
+    ylab(ylab) + theme(axis.title.x=element_blank(), 
+                       axis.title.y=element_text(size=16),
+                       axis.text.x=element_text(size=16, angle=45, vjust=1,hjust=1)) +
+    ggplot2::scale_x_discrete(limits = sigOrder) +
+    scale_fill_manual(values=fillVals, 
+                      breaks=c("Sorted","Lasry","Triana","van Galen"))#+
+    #ggtitle(paste("Monocytic signatures predict", j, "sensitivity"))
+  ggsave(paste0(j,"_Corr_DIA_WV_signatureFill_barPlot_",descr,"_", Sys.Date(), ".pdf"), width = 2, height = 2)
+  
+  # mono fraction
+  plot.df <- frac.corr.df
+  plot.df$rank <- plot.df[,i]
+  sigOrder <- plot.df[order(plot.df$rank, decreasing=TRUE),]$Signature
+  ggplot(plot.df, aes(x=Signature, y=rank, fill = Signature)) + 
+    geom_col(alpha=0.5, show.legend=FALSE) + theme_classic(base_size = 12) + ylab(ylab) + 
+    theme(axis.title.x=element_blank(), 
+          axis.title.y=element_text(size=16),
+          axis.text.x=element_text(size=16, angle=45, vjust=1,hjust=1)) +
+    ggplot2::scale_x_discrete(limits = sigOrder) +
+    scale_fill_manual(values=fillVals, 
+                      breaks=c("Sorted","Lasry","Triana","van Galen"))#+
+    #ggtitle("Monocytic signatures predict monocyte fraction")
+  ggsave(paste0("fracCorr_DIA_WV_",descr,"_signatureFill_", Sys.Date(),".pdf"), width = 2, height = 2)
+}

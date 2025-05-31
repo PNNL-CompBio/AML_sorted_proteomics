@@ -59,6 +59,7 @@ for (j in names(omics)) {
     expr <- global100
   }
   omics.corr <- list()
+  omics.WV <- list()
   for (i in n.features) {
     top.sig <- sig %>% slice_max(abs(Log2FC), n=i)
     if (nrow(sig) < i) {temp.n <- nrow(sig)} else {temp.n <- i}
@@ -71,6 +72,7 @@ for (j in names(omics)) {
                                    weights = top.sig, 
                                    ylab = "Drug AUC", xlab = "CD14+ vs. CD34+ Score",
                                 position.y = "max")
+    temp.WV <- DMEA.results$WV.scores
     temp.corr <- DMEA.results$corr.result
     omics.corr[[as.character(temp.n)]] <- temp.corr[temp.corr$Drug == "Venetoclax" | 
                                                       temp.corr$Drug == "Azacytidine - Venetoclax",]
