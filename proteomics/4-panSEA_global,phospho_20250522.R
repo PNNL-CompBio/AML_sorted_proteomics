@@ -719,6 +719,9 @@ contrasts <- c("CD14", "CD34", #"Aza", "Ven", "Aza.Ven", # Aza + Ven has NA- nee
                "Ven", "Sort Type", "MSC")
 contrasts.noMSC <- c("CD14", "Sort Type", #"Aza", "Ven", "Aza.Ven"
                      "Ven")
+contrasts <- c("CD14", "CD34", "Aza", "Ven", "Aza.Ven", 
+               "Sort Type", "MSC")
+contrasts.noMSC <- c("CD14", "Sort Type", "Aza", "Ven", "Aza.Ven")
 #contrasts.noMSC <- c("CD14", "Sort Type")
 #BeatAML.data <- load_not_norm_BeatAML_for_DMEA2()
 #sorted.patients <- unique(mCombo$patient)
@@ -842,6 +845,135 @@ all.DEG.files <- list("Differential_expression_results.csv" =
                       "Differential_expression_results_max_5_percent_FDR_noMSC.csv" = 
                         all.degs.noMSC[all.degs.noMSC$adj.P.Val <= 0.05, ])
 save_to_synapse(all.DEG.files, synapse_id)
+
+# look at STRING network for DIA bead: CD14+ vs. CD34+
+library(PCSF)
+data("STRINGv12")
+de <- read.csv("analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv")
+de <- de[de$adj.P.Val<=0.05,] # 2597 gene symbols
+pos.de <- de[de$Log2FC>0,] # 1136
+neg.de <- de[de$Log2FC<0,] # 1461
+hist(pos.de$Log2FC) # maybe look at log2FC>1
+hist(neg.de$Log2FC) # maybe look at log2FC<-1
+
+pos.de1 <- de[de$Log2FC > 1,] # 478
+neg.de1 <- de[de$Log2FC < -1,] # 455
+
+pos.de2 <- de[de$Log2FC > 2,] # 117
+neg.de2 <- de[de$Log2FC < -2,] # 24
+
+pos.de3 <- de[de$Log2FC > 3,] # 30
+neg.de3 <- de[de$Log2FC < -3,] # 1: CD34
+
+pos.de4 <- de[de$Log2FC > 4,] # 7
+neg.de4 <- de[de$Log2FC < -4,] # 0
+
+pos.hall.edges <- STRINGv12[STRINGv12$from %in% pos.de3$Gene |
+                          STRINGv12$to %in% pos.de3$Gene,]
+pos.hall.vert <- data.frame(unique(c(pos.hall.edges$from, pos.hall.edges$to)), type="Inferred", absLog2FC=NA)
+colnames(pos.hall.vert)[1] <- "name"
+pos.hall.vert[pos.hall.vert$name %in% pos.de3$Gene,]$type <- "Input"
+used.input <- unique(pos.hall.vert[pos.hall.vert$type=="Input",]$name) # 115
+for (i in used.input) {
+  pos.hall.vert[pos.hall.vert$name == i,]$absLog2FC <- abs(pos.de3[pos.de3$Gene==i,]$Log2FC)
+}
+topGraph <- igraph::graph_from_data_frame(pos.hall.edges, directed=FALSE, vertices = pos.hall.vert)
+centrality.df <- data.frame(name = V(topGraph)$name,
+                            degree = igraph::degree(topGraph, mode="all"),
+                            closeness = igraph::closeness(topGraph, mode="all"),
+                            betweenness = igraph::betweenness(topGraph, directed = FALSE),
+                            eigen_centrality = igraph::eigen_centrality(topGraph, directed = FALSE)$vector,
+                            hub_score = igraph::hub_score(topGraph)$vector,
+                            authority_score = igraph::authority_score(topGraph)$vector)
+RCy3::createNetworkFromIgraph(topGraph, title="pos.hall_exp24")
+
+library(plyr);library(dplyr)
+top5pos <- de %>% slice_max(Log2FC, n=5)
+top5pos.edges <- STRINGv12[STRINGv12$from %in% top5pos$Gene |
+                          STRINGv12$to %in% top5pos$Gene,]
+top5pos.vert <- data.frame(unique(c(top5pos.edges$from, top5pos.edges$to)), type="Inferred", absLog2FC=NA)
+colnames(top5pos.vert)[1] <- "name"
+top5pos.vert[top5pos.vert$name %in% top5pos$Gene,]$type <- "Input"
+used.input <- unique(top5pos.vert[top5pos.vert$type=="Input",]$name) # 5
+for (i in used.input) {
+  top5pos.vert[top5pos.vert$name == i,]$absLog2FC <- abs(top5pos[top5pos$Gene==i,]$Log2FC)
+}
+topGraph <- igraph::graph_from_data_frame(top5pos.edges, directed=FALSE, vertices = top5pos.vert)
+centrality.df <- data.frame(name = V(topGraph)$name,
+                            degree = igraph::degree(topGraph, mode="all"),
+                            closeness = igraph::closeness(topGraph, mode="all"),
+                            betweenness = igraph::betweenness(topGraph, directed = FALSE),
+                            eigen_centrality = igraph::eigen_centrality(topGraph, directed = FALSE)$vector,
+                            hub_score = igraph::hub_score(topGraph)$vector,
+                            authority_score = igraph::authority_score(topGraph)$vector)
+RCy3::createNetworkFromIgraph(topGraph, title="top5pos_exp24")
+
+# filter for what connects these 5 DEGs
+top5pos.vert$directCon <- NA
+for (i in used.input) {
+  directConnections <- unique(c(top5pos.edges[top5pos.edges$from == i,]$to,
+                                top5pos.edges[top5pos.edges$to == i,]$from))
+  top5pos.vert[top5pos.vert$name == i,]$directCon <- paste0(directConnections, collapse=", ")
+}
+allDirCon <- na.omit(unique(unlist(strsplit(top5pos.vert$directCon, ", ")))) # 516
+
+# top5pos.vert$inputCon <- NA
+# for (i in 1:nrow(top5pos.vert)) {
+#   j <- top5pos.vert$name[i]
+#   if (!(j %in% used.input)) {
+#     # find what inputs the protein is connected to
+#     tempInputCon <- 
+#   }
+# }
+
+nInputCon <- plyr::ddply(top5pos.edges[!(top5pos.edges$from %in% used.input),], 
+                         .(from), summarize,
+                         inputCon = paste0(unique(to[to %in% used.input]), collapse=", "),
+                         n = length(unique(to[to %in% used.input])))
+top5posCon.edges <- top5pos.edges[top5pos.edges$from %in% nInputCon[nInputCon$n>1,]$from,] # 163
+top5posCon.vert <- top5pos.vert[top5pos.vert$name %in% c(top5posCon.edges$from, top5posCon.edges$to),] # 80
+topGraph <- igraph::graph_from_data_frame(top5posCon.edges, directed=FALSE, vertices = top5posCon.vert)
+centrality.df <- data.frame(name = V(topGraph)$name,
+                            degree = igraph::degree(topGraph, mode="all"),
+                            closeness = igraph::closeness(topGraph, mode="all"),
+                            betweenness = igraph::betweenness(topGraph, directed = FALSE),
+                            eigen_centrality = igraph::eigen_centrality(topGraph, directed = FALSE)$vector,
+                            hub_score = igraph::hub_score(topGraph)$vector,
+                            authority_score = igraph::authority_score(topGraph)$vector)
+RCy3::createNetworkFromIgraph(topGraph, title="top5posCon_exp24")
+
+hall <- msigdbr::msigdbr(collection="H")
+hall.nfkb <- hall[grepl("NFKB",hall$gs_name),] # 200 genes
+pos.hall.edges <- pos3.edges[pos3.edges$from %in% c(pos.de3$Gene, hall.nfkb$gene_symbol) &
+                               pos3.edges$to %in% c(pos.de3$Gene, hall.nfkb$gene_symbol),] # 198
+pos.hall.vert <- data.frame(unique(c(pos.hall.edges$from, pos.hall.edges$to)), type="Inferred", absLog2FC=NA) # 62
+colnames(pos.hall.vert)[1] <- "name"
+pos.hall.vert[pos.hall.vert$name %in% pos.de3$Gene,]$type <- "Input"
+used.input <- unique(pos.hall.vert[pos.hall.vert$type=="Input",]$name) # 22 / 30
+for (i in used.input) {
+  pos.hall.vert[pos.hall.vert$name == i,]$absLog2FC <- abs(pos.de3[pos.de3$Gene==i,]$Log2FC)
+}
+pos.hall.vert$NFKB <- FALSE
+pos.hall.vert[pos.hall.vert$name %in% hall.nfkb$gene_symbol,]$NFKB <- TRUE
+topGraph <- igraph::graph_from_data_frame(pos.hall.edges, directed=FALSE, vertices = pos.hall.vert)
+RCy3::createNetworkFromIgraph(topGraph, title="posHallNFKB3_exp24")
+
+hall.nfkb <- hall[grepl("NFKB",hall$gs_name),] # 200 genes
+pos.hall.edges <- pos3.edges[pos3.edges$from %in% c(pos.de3$Gene, hall.nfkb$gene_symbol) &
+                               pos3.edges$to %in% c(pos.de3$Gene, hall.nfkb$gene_symbol),] # 198
+pos.hall.vert <- data.frame(unique(c(pos.hall.edges$from, pos.hall.edges$to)), type="Inferred", absLog2FC=NA) # 62
+colnames(pos.hall.vert)[1] <- "name"
+pos.hall.vert[pos.hall.vert$name %in% pos.de3$Gene,]$type <- "Input"
+used.input <- unique(pos.hall.vert[pos.hall.vert$type=="Input",]$name) # 22 / 30
+for (i in used.input) {
+  pos.hall.vert[pos.hall.vert$name == i,]$absLog2FC <- abs(pos.de3[pos.de3$Gene==i,]$Log2FC)
+}
+pos.hall.vert$NFKB <- FALSE
+pos.hall.vert[pos.hall.vert$name %in% hall.nfkb$gene_symbol,]$NFKB <- TRUE
+topGraph <- igraph::graph_from_data_frame(pos.hall.edges, directed=FALSE, vertices = pos.hall.vert)
+RCy3::createNetworkFromIgraph(topGraph, title="posHallNFKB3_exp24")
+
+
 # before updating panSEA package
 # [1] "Running CD14_Pos_vs_Neg with no filter"
 # Loading required namespace: snow
