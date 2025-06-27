@@ -388,6 +388,70 @@ load_not_norm_BeatAML_for_DMEA3 <- function(BeatAML.path = "BeatAML_DMEA_inputs_
               global = global.BeatAML[!(global.BeatAML$Barcode.ID %in% exclude.samples),],
               phospho = phospho.BeatAML[!(phospho.BeatAML$Barcode.ID %in% exclude.samples),]))
 }
+
+evalOneSigVen <- function(global.df100, temp.sig, BeatAML, type="global", gmt) {
+  temp.sig <- na.omit(temp.sig)
+  
+  ## Beat AML
+  # perform DMEA on Beat AML global proteomics
+  expr <- BeatAML[[type]]
+  temp.sig2 <- temp.sig[temp.sig$Gene %in% colnames(expr)[2:ncol(expr)],]
+  nSamples <- length(expr$Barcode.ID[expr$Barcode.ID %in% BeatAML$drug$Barcode.ID])
+  if (nrow(temp.sig2) > 2 & nSamples > 2) {
+    expr <- expr[,c("Barcode.ID", colnames(expr)[colnames(expr) %in% temp.sig2$Gene])]
+    if (ncol(expr) > 3 & nrow(expr) > 2) {
+      DMEA.result <- panSEA::mDMEA(BeatAML$drug, gmt, list(expr), 
+                                   list(temp.sig2), types=type,
+                                   sample.names="Barcode.ID",
+                                   weight.values=colnames(temp.sig2)[2], 
+                                   scatter.plots = FALSE)
+      corr.df <- DMEA.result$all.results[[1]]$corr.result
+    } else {
+      corr.df <- data.frame()
+    }
+  } else {
+    corr.df <- data.frame()
+  }
+  
+  return(corr.df)
+}
+
+
+optSig <- function(global.df100, temp.sig, BeatAML, type="global", gmt) {
+  genes <- temp.sig$Gene
+  # leave out each gene and then predict ven AUC
+  sensPred <- data.frame()
+  for (i in genes) {
+    temp.sig2 <- temp.sig[temp.sig$Gene != i,]
+    temp.sens <- evalOneSigVen(global.df100, temp.sig2, BeatAML, type, gmt)
+    temp.sens$GeneLeftOut <- i
+    sensPred <- rbind(sensPred, temp.sens)
+  }
+  venPred <- sensPred[sensPred$Drug == "Venetoclax",]
+  venPred$delta <- venPred$Pearson.est - 0.704114664863842
+  
+  # filter for genes which increase ven correlation estimate (r)
+  venImpr <- venPred[venPred$delta>0,]
+  
+  # start with gene w biggest delta>0 and increase # of genes until ven Pearson q < 0.05
+  useful <- venImpr[order(venImpr$delta, decreasing=TRUE),]$Gene
+  usedGenes <- c()
+  minSensPred <- data.frame()
+  for (i in useful) {
+    usedGenes <- c(usedGenes, i)
+    temp.sig2 <- temp.sig[temp.sig$Gene %in% usedGenes,]
+    temp.sens <- evalOneSigVen(global.df100, temp.sig2, BeatAML, type, gmt)
+    temp.sens$N_genes <- length(usedGenes)
+    temp.sens$Genes <- paste0(usedGenes, collapse=", ")
+    minSensPred <- rbind(minSensPred, temp.sens)
+    if (temp.sens$Pearson.q < 0.05) {
+      break
+    }
+  }
+  return(loo = sensPred, venLoo = venPred, min=minSensPred, minSig=temp.sig2)
+}
+
+#### run predictions with all genes ####
 setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
 setwd("data")
 
@@ -582,5 +646,141 @@ for (i in rank.metrics) {
     scale_fill_manual(values=fillVals, 
                       breaks=c("Sorted","Lasry","Triana","van Galen"))#+
     #ggtitle("Monocytic signatures predict monocyte fraction")
+  ggsave(paste0("fracCorr_DIA_WV_",descr,"_signatureFill_", Sys.Date(),".pdf"), width = 2, height = 2)
+}
+
+#### find min number of important genes ####
+setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+setwd("data")
+
+gmt.drug <- readRDS("gmt_BeatAML_drug_MOA_2025-01-20.rds")
+
+# load sorted proteomics signature
+sig.paths <- list("Sorted" = "analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+                  "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv",
+                  "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
+                  "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv")
+
+dia.wo.out <- readRDS("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/DIA_2batches_noOutliers.rds")
+
+global.df <- dia.wo.out$global
+#rownames(global.df) <- global.df$Gene
+#global.df$Gene <- NULL
+global.df <- as.data.frame(t(global.df))
+global.df$Sample <- rownames(global.df)
+global.df <- global.df[,c("Sample", colnames(global.df)[1:(ncol(global.df)-1)])]
+global.df100 <- global.df[,colSums(is.na(global.df)) == 0]
+global.df100 <- global.df100[!grepl("_f_",global.df100$Sample, ignore.case=TRUE),] # 39 samples out of 51, 4417 proteins out of 6888
+
+# import signatures and filter
+sigs <- list()
+setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+for (i in names(sig.paths)) {
+  sigs[[i]] <- read.csv(sig.paths[[i]])
+  sigs[[i]] <- na.omit(sigs[[i]][sigs[[i]]$adj.P.Val <= 0.05,c("Gene","Log2FC")])
+}
+
+
+# optimize sorted sig
+optSorted <- optSig(global.df100, sigs[["Sorted"]], BeatAML=BeatAML, type="global", gmt=gmt.drug)
+write.csv(optSorted$loo, "drugSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
+write.csv(optSorted$venLoo, "venSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
+write.csv(optSorted$min, "drugSensPrediction_sortedBead_minGenes.csv", row.names = FALSE)
+write.csv(optSorted$minSig, "drugSensPrediction_sortedBead_minGeneSignature.csv", row.names = FALSE)
+
+venn.list <- list()
+colorOrder <- c("Sorted","Lasry","Triana","van Galen")
+for (i in colorOrder) {
+  venn.list[[i]] <- unique(sigs[[i]]$Gene)
+}
+library(ggvenn)
+
+ggvenn::ggvenn(venn.list, show_percentage = FALSE, fill_color=fillVals, set_name_size=5, text_size=5)
+ggsave("mono_vs_prog_signature_vennDiagram.pdf",width=7, height=7)
+
+# run correlations between signatures
+sig.df <- data.table::rbindlist(sigs, use.names=TRUE, idcol="Signature")
+sig.df <- reshape2::dcast(sig.df, Gene ~ Signature, value.var="Log2FC")
+corr <- data.frame()
+for (i in colorOrder) {
+  otherSigs <- colorOrder[colorOrder != i]
+  temp.input <- sig.df[,c("Gene",i,otherSigs)]
+  temp.corr <- DMEA::rank_corr(temp.input,plots=FALSE)$result
+  temp.corr[nrow(temp.corr)+1,] <- c(i,1,rep(NA, ncol(temp.corr)-2))
+  temp.corr$Signature <- i
+  corr <- rbind(corr, temp.corr)
+}
+write.csv(corr, "mono_vs_prog_signature_correlations.csv", row.names=FALSE) # all significant
+write.csv(corr, "mono_vs_prog_signature_correlations_withSelfCorr.csv", row.names=FALSE) # all significant
+#maxAbsEst <- max(abs(corr$Pearson.est))
+corr$Pearson.est <- as.numeric(corr$Pearson.est)
+ggplot(corr, aes(x=Drug, y=Signature, fill=Pearson.est)) + geom_tile() + 
+  scale_fill_gradient2(limits=c(-1,1), low="blue", mid="grey", high="red")+labs(fill="Pearson r")+
+  theme_minimal(base_size=16) + theme(axis.text=element_text(vjust=1, hjust=1, angle=45), axis.title=element_blank())
+ggsave("mono_vs_prog_signature_correlations_withSelfCorr.pdf", width=4, height=2.5)
+
+setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
+setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
+
+sorted.patients <- unique(dia.wo.out$meta$patient)
+BeatAML <- load_not_norm_BeatAML_for_DMEA3(exclude.samples=sorted.patients)
+
+
+# redo plots
+setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+#dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
+setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
+drug.corr.df <- read.csv("drugCorrelations.csv")
+frac.corr.df <- read.csv("cellFractionCorrelations.csv")
+
+fillVals = RColorBrewer::brewer.pal(length(sigs), "Set2")
+rank.metrics <- c("Pearson.est", "Spearman.est")
+for (i in rank.metrics) {
+  descr <- stringr::str_split_1(i, "[.]")[1]
+  if (descr == "Pearson") {
+    ylab <- "Pearson r"
+  } else {
+    ylab <- "Spearman rho"
+  }
+  
+  # drug sensitivity
+  j <- "Aza + Ven"
+  plot.df <- drug.corr.df[drug.corr.df$`Drug.Treatment` == j,]
+  plot.df$rank <- plot.df[,i]
+  sigOrder <- na.omit(unique(plot.df[order(plot.df$rank, decreasing=TRUE),]$Signature))
+  # ggplot(plot.df, aes(x=Signature, y=rank, fill = Signature, alpha=0.5)) + 
+  #   geom_col() + theme_classic(base_size = 12) + 
+  #   ylab(ylab) + 
+  #   ggplot2::scale_x_discrete(limits = sigOrder) +
+  #   scale_fill_manual(values=fillVals, 
+  #                     breaks=c("Sorted","Lasry","Triana","van Galen"))+
+  #   ggtitle(paste("Monocytic signatures predict", j, "sensitivity"))
+  # ggsave(paste0(j,"_Corr_DIA_WV_signatureFill_barPlot_",descr,"_", Sys.Date(), ".pdf"), width = 5, height = 3)
+  
+  ggplot(plot.df, aes(x=Signature, y=rank, fill = Signature)) + 
+    geom_col(alpha=0.5, show.legend=FALSE) + theme_classic(base_size = 12) + 
+    ylab(ylab) + theme(axis.title.x=element_blank(), 
+                       axis.title.y=element_text(size=16),
+                       axis.text.x=element_text(size=16, angle=45, vjust=1,hjust=1)) +
+    ggplot2::scale_x_discrete(limits = sigOrder) +
+    scale_fill_manual(values=fillVals, 
+                      breaks=c("Sorted","Lasry","Triana","van Galen"))#+
+  #ggtitle(paste("Monocytic signatures predict", j, "sensitivity"))
+  ggsave(paste0(j,"_Corr_DIA_WV_signatureFill_barPlot_",descr,"_", Sys.Date(), ".pdf"), width = 2, height = 2)
+  
+  # mono fraction
+  plot.df <- frac.corr.df
+  plot.df$rank <- plot.df[,i]
+  sigOrder <- plot.df[order(plot.df$rank, decreasing=TRUE),]$Signature
+  ggplot(plot.df, aes(x=Signature, y=rank, fill = Signature)) + 
+    geom_col(alpha=0.5, show.legend=FALSE) + theme_classic(base_size = 12) + ylab(ylab) + 
+    theme(axis.title.x=element_blank(), 
+          axis.title.y=element_text(size=16),
+          axis.text.x=element_text(size=16, angle=45, vjust=1,hjust=1)) +
+    ggplot2::scale_x_discrete(limits = sigOrder) +
+    scale_fill_manual(values=fillVals, 
+                      breaks=c("Sorted","Lasry","Triana","van Galen"))#+
+  #ggtitle("Monocytic signatures predict monocyte fraction")
   ggsave(paste0("fracCorr_DIA_WV_",descr,"_signatureFill_", Sys.Date(),".pdf"), width = 2, height = 2)
 }
