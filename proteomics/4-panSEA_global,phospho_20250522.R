@@ -508,6 +508,7 @@ dia.wo.out.cov <- dia.wo.out.cov[which(rowSums(is.na(dia.wo.out.cov)) < ncol(dia
 dia.wo.out <- list("meta" = dia.wo.out$meta,
                    "global" = dia.wo.out.cov)
 saveRDS(dia.wo.out,"DIA_2batches_noOutliers.rds")
+dia.wo.out <- readRDS("analysis/DIA_2batches_noOutliers.rds")
 
 method.data <- list("DIA_2batches_noOutliers" = dia.wo.out)
 for (k in 1:length(method.data)) {
