@@ -371,6 +371,8 @@ load_not_norm_BeatAML_for_DMEA3 <- function(BeatAML.path = "BeatAML_DMEA_inputs_
               global = global.BeatAML[!(global.BeatAML$Barcode.ID %in% exclude.samples),],
               phospho = phospho.BeatAML[!(phospho.BeatAML$Barcode.ID %in% exclude.samples),]))
 }
+
+#### predict using full signatures ####
 setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
 setwd("data")
 
@@ -446,6 +448,173 @@ p.df$Signature <- factor(p.df$Signature, levels=unique(sigOrder))
 ggplot2::ggplot(p.df, aes(x=Signature, y=Pearson.est)) + geom_violin(alpha=0) +
   geom_point(#aes(color=Drug)
     ) + 
+  geom_boxplot(width=0.2, alpha = 0) + 
+  labs(y="Pearson Correlation Estimate") + theme_classic(base_size = 12) +
+  ggtitle(paste("Monocyte signatures predict drug sensitivity"))
+ggsave(paste0("patientAccuracy","_bySignature.pdf"), width = 5, height = 5)
+
+p.df <- drug.corr.df
+sigOrder <- p.df[order(p.df$Pearson.est),]$Signature
+p.df$Signature <- factor(p.df$Signature, levels=unique(sigOrder))
+ggplot2::ggplot(p.df, aes(x=Signature, y=Pearson.est)) + geom_violin(alpha=0) +
+  geom_point(#aes(color=Drug)
+  ) + 
+  geom_boxplot(width=0.2, alpha = 0) + 
+  labs(y="Pearson Correlation Estimate") + theme_classic(base_size = 12) +
+  ggtitle(paste("Monocyte signatures predict drug sensitivity"))
+ggsave(paste0("drugAccuracy","_bySignature.pdf"), width = 5, height = 5)
+
+
+#frac.corr.df <- read.csv("cellFractionCorrelations.csv")
+
+drug.info <- read.csv("~/OneDrive - PNNL/Documents/PTRC2/BeatAML_single_drug_moa.csv",
+                      stringsAsFactors = FALSE, fileEncoding = "latin1")
+drug.info <- drug.info[,c("Drug","moa")]
+drug.info[drug.info$Drug == "Ralimetinib (LY2228820)",]$moa <- "p38 MAPK inhibitor"
+drug.info[drug.info$Drug == "Nilotinib",]$moa <- "Abl kinase inhibitor"
+drug.info[drug.info$Drug == "AT-101",]$moa <- "BCL inhibitor"
+drug.info[is.na(drug.info$moa),]$moa <- "Other"
+library(patchwork); library(ggplot2)
+pearson.plots <- NULL
+spearman.plots <- NULL
+#MOAsInTop50 <- names(gmt.drug$genesets)
+#moaColors <- grDevices::colorRampPalette(RColorBrewer::brewer.pal(12, "Set3"))(length(MOAsInTop50))
+pearson.venn <- list()
+spearman.venn <- list()
+for (i in unique(drug.corr.df$Signature)) {
+  p.df <- drug.corr.df[drug.corr.df$Signature == i,]
+  p.df$Pearson.q <- qvalue::qvalue(p = p.df$Pearson.p, pi0 = 1)$qvalues
+  p.df$Spearman.q <- qvalue::qvalue(p = p.df$Spearman.p, pi0 = 1)$qvalues
+  plot.df <- merge(p.df, drug.info, by="Drug", all.x = TRUE)
+  plot.df$Mechanism <- "Other"
+  #plot.df[plot.df$moa %in% MOAsInTop50,]$Mechanism <- plot.df[plot.df$moa %in% MOAsInTop50,]$moa
+  plot.df[grepl("Venetoclax",plot.df$Drug),]$Mechanism <- "BCL inhibitor"
+  plot.df$Drug <- sub(" [(].*", "", plot.df$Drug) # shorten drug names for plot
+  plot.df[plot.df$Drug == "NF-kB Activation Inhibitor",]$Drug <- "NFkB Inhibitor"
+  
+  rank.metrics <- c("Pearson.est", "Spearman.est")
+  for (j in rank.metrics) {
+    descr <- stringr::str_split_1(j, "[.]")[1]
+    if ("Drug" %in% colnames(plot.df)) {
+      if (j == "Pearson.est") {
+        plot.df <- plot.df[plot.df$Pearson.est > 0 & plot.df$Pearson.q <= 0.05,]
+        ylab <- paste0(descr," r")
+        pearson.venn[[i]] <- unique(plot.df$Drug)
+      } else {
+        plot.df <- plot.df[plot.df$Spearman.est > 0 & plot.df$Spearman.q <= 0.05,]
+        ylab <- paste0(descr," rho")
+        spearman.venn[[i]] <- unique(plot.df$Drug)
+      }
+      plot.df$rank <- plot.df[,j]
+      sigOrder <- na.omit(unique(plot.df[order(plot.df$rank, decreasing=TRUE),]$Drug))
+      plot.annot <- paste0(i, "\n(", nrow(plot.df), " / ", nrow(p.df), " Drugs Positively Correlated)")
+      corr.plot <- ggplot(plot.df, aes(x=Drug, y=rank, fill = Mechanism)) + 
+        geom_col() + theme_minimal(base_size = 12) + ylab(ylab) + 
+        ggplot2::scale_x_discrete(limits = sigOrder) +
+        theme(axis.text.x = element_text(angle = 45, vjust=1, hjust=1),
+              axis.title.x=element_blank()) +
+        #scale_fill_manual(breaks=MOAsInTop50, values = moaColors) +
+        ggtitle(plot.annot) + 
+        theme(plot.title = element_text(hjust = 0.5, face="bold", size=16), legend.position="bottom")
+      ggsave(paste0("Drug_DIA_WV_moaFill_",descr,"_", i, ".pdf"), corr.plot, width = 10, height = 5)
+      if (is.null(pearson.plots) & j == "Pearson.est") {
+        pearson.plots <- (corr.plot + theme(legend.position = "none"))
+      } else if (j == "Pearson.est") {
+        pearson.plots <- pearson.plots / (corr.plot + theme(legend.position = "none"))
+      } else if (is.null(spearman.plots) & j == "Spearman.est") {
+        spearman.plots <- (corr.plot + theme(legend.position = "none"))
+      } else if (j == "Spearman.est") {
+        spearman.plots <- spearman.plots / (corr.plot + theme(legend.position = "none"))
+      }
+    }
+  }
+}
+#source("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/MPNST/Chr8/MPNST_Chr8_manuscript/Figure_3_Kinase/guides_build_mod.R")
+#pearson.plots <- (pearson.plots / plot_spacer()) + plot_layout(guides='collect')
+#pearson.plots <- pearson.plots + theme(legend.position = "none")
+ggplot2::ggsave("Drug_DIA_WV_moaFill_Pearson_allSigs.pdf", pearson.plots, width=12, height=12)
+ggplot2::ggsave("Drug_DIA_WV_moaFill_Spearman_allSigs.pdf", spearman.plots, width=12, height=12)
+ggvenn::ggvenn(pearson.venn, show_percentage=FALSE, set_name_size=5, text_size=5)
+ggsave("Drug_DIA_WV_Pearson_sigOverlap.pdf", width=5, height=5)
+ggvenn::ggvenn(spearman.venn, show_percentage=FALSE, set_name_size=5, text_size=5)
+ggsave("Drug_DIA_WV_Spearman_sigOverlap.pdf", width=5, height=5)
+
+#### narrow down sorted signature ####
+setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+setwd("data")
+
+# drug.info <- read.csv("~/OneDrive - PNNL/Documents/PTRC2/BeatAML_single_drug_moa_2025-01-20.csv",
+#                       stringsAsFactors=FALSE, fileEncoding="latin1")
+# gmt.drug <- DMEA::as_gmt(drug.info, sep=", ")
+# saveRDS(gmt.drug, "gmt_BeatAML_drug_MOA_2025-01-20.rds")
+gmt.drug <- readRDS("gmt_BeatAML_drug_MOA_2025-01-20.rds")
+
+# load sorted proteomics signature
+sig.paths <- list("Sorted" = "analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+                  "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv",
+                  "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
+                  "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv")
+
+# import signatures and filter
+sigs <- list()
+setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+for (i in names(sig.paths)) {
+  sigs[[i]] <- read.csv(sig.paths[[i]])
+  sigs[[i]] <- na.omit(sigs[[i]][sigs[[i]]$adj.P.Val <= 0.05,c("Gene","Log2FC")])
+}
+
+setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+dir.create("Monocyte_vs_progenitor_sigOpt_beadOnly")
+setwd("Monocyte_vs_progenitor_sigOpt_beadOnly")
+
+dia.wo.out <- readRDS("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/DIA_2batches_noOutliers.rds")
+# sorted.patients <- c("18-00105", "21-00839", "22-00571", "22-00117", "16-01184",
+#                      "19-00074", "18-00103", "21-00432", "17-01060", "22-00251")
+sorted.patients <- unique(dia.wo.out$meta$patient)
+BeatAML <- load_not_norm_BeatAML_for_DMEA3(exclude.samples=sorted.patients)
+
+# evaluate signature
+evalResults <- compareSigs(sigs, BeatAML = BeatAML, types=c("global", "rna", "rna", "rna"), gmt = gmt.drug) 
+write.csv(evalResults$wv, "wv.csv", row.names = FALSE)
+write.csv(evalResults$drug, "predictions.csv", row.names = FALSE)
+write.csv(evalResults$drug.corr, "drugAccuracy.csv", row.names = FALSE)
+write.csv(evalResults$pt.corr, "patientAccuracy.csv", row.names = FALSE)
+saveRDS(evalResults$DMEA, "DMEA.rds")
+saveRDS(evalResults$DMEA.Spearman, "DMEA_Spearman.rds")
+all.DMEA.files <- list()
+for (i in names(sigs)) {
+  DMEA.files <- list("DMEA_results.csv" =
+                       evalResults$DMEA[[i]]$result,
+                     "DMEA_results_Spearman.csv" =
+                       evalResults$DMEA.Spearman[[i]]$result,
+                     "DMEA_volcano_plot.pdf" =
+                       evalResults$DMEA[[i]]$volcano.plot,
+                     "DMEA_volcano_plot_Spearman.pdf" =
+                       evalResults$DMEA.Spearman[[i]]$volcano.plot,
+                     "DMEA_bar_plot.pdf" =
+                       evalResults$DMEA[[i]]$bar.plot,
+                     "DMEA_bar_plot_Spearman.pdf" =
+                       evalResults$DMEA.Spearman[[i]]$bar.plot,
+                     "DMEA_dot_plot.pdf" =
+                       evalResults$DMEA[[i]]$dot.plot,
+                     "DMEA_dot_plot_Spearman.pdf" =
+                       evalResults$DMEA.Spearman[[i]]$dot.plot) 
+  all.DMEA.files[[i]] <- DMEA.files
+}
+save_to_synapse_v2(all.DMEA.files)
+
+# redo plots
+setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+dir.create("Monocyte_vs_progenitor_signatures_beadOnly_LOO_2025-05-30")
+setwd("Monocyte_vs_progenitor_signatures_beadOnly_LOO_2025-05-30")
+drug.corr.df <- read.csv("drugAccuracy.csv")
+pt.corr.df <- read.csv("patientAccuracy.csv")
+p.df <- pt.corr.df
+sigOrder <- p.df[order(p.df$Pearson.est),]$Signature
+p.df$Signature <- factor(p.df$Signature, levels=unique(sigOrder))
+ggplot2::ggplot(p.df, aes(x=Signature, y=Pearson.est)) + geom_violin(alpha=0) +
+  geom_point(#aes(color=Drug)
+  ) + 
   geom_boxplot(width=0.2, alpha = 0) + 
   labs(y="Pearson Correlation Estimate") + theme_classic(base_size = 12) +
   ggtitle(paste("Monocyte signatures predict drug sensitivity"))
