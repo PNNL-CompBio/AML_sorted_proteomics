@@ -427,8 +427,10 @@ optSig <- function(global.df100, temp.sig, BeatAML, type="global", gmt) {
     temp.sens$GeneLeftOut <- i
     sensPred <- rbind(sensPred, temp.sens)
   }
+  write.csv(sensPred, "drugSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
   venPred <- sensPred[sensPred$Drug == "Venetoclax",]
   venPred$delta <- venPred$Pearson.est - 0.704114664863842
+  write.csv(venPred, "venSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
   
   # filter for genes which increase ven correlation estimate (r)
   venImpr <- venPred[venPred$delta>0,]
@@ -441,11 +443,15 @@ optSig <- function(global.df100, temp.sig, BeatAML, type="global", gmt) {
     usedGenes <- c(usedGenes, i)
     temp.sig2 <- temp.sig[temp.sig$Gene %in% usedGenes,]
     temp.sens <- evalOneSigVen(global.df100, temp.sig2, BeatAML, type, gmt)
-    temp.sens$N_genes <- length(usedGenes)
-    temp.sens$Genes <- paste0(usedGenes, collapse=", ")
-    minSensPred <- rbind(minSensPred, temp.sens)
-    if (temp.sens$Pearson.q < 0.05) {
-      break
+    if (is.data.frame(temp.sens) & nrow(temp.sens) > 0){
+      temp.sens$N_genes <- length(usedGenes)
+      temp.sens$Genes <- paste0(usedGenes, collapse=", ")
+      minSensPred <- rbind(minSensPred, temp.sens)
+      if (temp.sens$Pearson.q < 0.05) {
+        write.csv(temp.sens, "drugSensPrediction_sortedBead_minGenes.csv", row.names = FALSE)
+        write.csv(temp.sig2, "drugSensPrediction_sortedBead_minGeneSignature.csv", row.names = FALSE)
+        break
+      } 
     }
   }
   return(loo = sensPred, venLoo = venPred, min=minSensPred, minSig=temp.sig2)
@@ -683,10 +689,10 @@ for (i in names(sig.paths)) {
 
 # optimize sorted sig
 optSorted <- optSig(global.df100, sigs[["Sorted"]], BeatAML=BeatAML, type="global", gmt=gmt.drug)
-write.csv(optSorted$loo, "drugSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
-write.csv(optSorted$venLoo, "venSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
-write.csv(optSorted$min, "drugSensPrediction_sortedBead_minGenes.csv", row.names = FALSE)
-write.csv(optSorted$minSig, "drugSensPrediction_sortedBead_minGeneSignature.csv", row.names = FALSE)
+#write.csv(optSorted$loo, "drugSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
+#write.csv(optSorted$venLoo, "venSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
+#write.csv(optSorted$min, "drugSensPrediction_sortedBead_minGenes.csv", row.names = FALSE)
+#write.csv(optSorted$minSig, "drugSensPrediction_sortedBead_minGeneSignature.csv", row.names = FALSE)
 
 venn.list <- list()
 colorOrder <- c("Sorted","Lasry","Triana","van Galen")
