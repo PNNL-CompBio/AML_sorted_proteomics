@@ -520,25 +520,33 @@ optSig <- function(global.df100, temp.sig, BeatAML, type="global", gmt) {
     venAUC.wv <- merge(venAUC, temp.wv, by="Barcode.ID")
     if (nrow(venAUC.wv)>2) {
       temp.corr <- cor.test(venAUC.wv$Venetoclax, venAUC.wv$WV)
+      temp.corr.sp <- cor.test(venAUC.wv$Venetoclax, venAUC.wv$WV, method="spearman")
       temp.sens <- data.frame(Drug="Venetoclax", Pearson.est=temp.corr$estimate, Pearson.p=temp.corr$p.value,
+                              Spearman.est=temp.corr.sp$estimate, Spearman.p=temp.corr.sp$p.value,
                               N_genes = 1, Genes = i, N=nrow(venAUC.wv))
       indVenPred <- rbind(indVenPred, temp.sens)
     }
   }
-  indPred$Pearson.q <- qvalue::qvalue(indPred$Pearson.p, pi0=1)$qvalue
-  indPred$Spearman.q <- qvalue::qvalue(indPred$Spearman.p, pi0=1)$qvalue
-  write.csv(indVenPred, "venSensPrediction_sortedBead_1GeneAll.csv", row.names = FALSE)
+  indVenPred$Pearson.q <- qvalue::qvalue(indVenPred$Pearson.p, pi0=1)$qvalue
+  indVenPred$Spearman.q <- qvalue::qvalue(indVenPred$Spearman.p, pi0=1)$qvalue
+  write.csv(indVenPred, "venSensPrediction_sortedBead_1GeneAll.csv", row.names = FALSE) # NCF2: 0.728081967	2.07E-21	0.722590303	0	1	NCF2	122	5.19E-18	0
+  # 0.60161205	2.33E-13	0.59101979	0	1	PLBD1	122	8.85E-12	0 (rank 66 / 2504 based on Pearson.est)
+  # 0.622730428	1.89E-14	0.646627299	0	1	CD14	122	1.10E-12	0 (rank 42)
+  # 0.622703425	1.89E-14	0.639046861	0	1	BCL2	122	1.10E-12	0 (rank 43)
+  # 0.067428548	0.460547261	0.049398422	0.588484512	1	CD34	122	0.501177897	0.621495242 (rank 2225)
   
   # what about aza+ven
   indPred <- data.frame()
   for (d in "Azacytidine - Venetoclax") {
     venAUC <- na.omit(BeatAML$drug[,c("Barcode.ID",d)])
     venAUCprot <- BeatAML$global[BeatAML$global$Barcode.ID %in% venAUC$Barcode.ID,] # 9413 gene symbols
+    # make sure each protein (columns 2+) are quantified in 2+ samples (rows)
+    venAUCprot3 <- venAUCprot[,colSums(is.na(venAUCprot)) < (nrow(venAUCprot)-2)]
     
     indVenPred <- data.frame()
-    for (i in temp.sig$Gene[temp.sig$Gene %in% colnames(venAUCprot)[2:ncol(venAUCprot)]]) { # 2504 gene symbols
+    for (i in temp.sig$Gene[temp.sig$Gene %in% colnames(venAUCprot3)[2:ncol(venAUCprot3)]]) { # 2504 gene symbols
       temp.sig2 <- temp.sig[temp.sig$Gene == i,]
-      temp.wv <- DMEA::WV(venAUCprot, temp.sig2)$scores
+      temp.wv <- DMEA::WV(venAUCprot3, temp.sig2)$scores
       venAUC.wv <- merge(venAUC, temp.wv, by="Barcode.ID")
       if (nrow(venAUC.wv) > 2) {
         temp.corr <- cor.test(venAUC.wv[[d]], venAUC.wv$WV)
@@ -553,7 +561,10 @@ optSig <- function(global.df100, temp.sig, BeatAML, type="global", gmt) {
   }
   indPred$Pearson.q <- qvalue::qvalue(indPred$Pearson.p, pi0=1)$qvalue
   indPred$Spearman.q <- qvalue::qvalue(indPred$Spearman.p, pi0=1)$qvalue
-  write.csv(indPred, "azaVenPrediction_sortedBead_1GeneAll.csv", row.names = FALSE)
+  write.csv(indPred, "azaVenPrediction_sortedBead_1GeneAll.csv", row.names = FALSE) # PLBD1 but N=15: r=0.9102487,p=2.474523e-06,q=0.006181358; rho=0.9035714,p=0,q=0
+  # NCF2: r=0.8183966, p=0.0001916759, q=0.02769824; rho=0.7607143,p=0.00151044,q=0.08174293 (rank 16 / 2498 based on Pearson.est)
+  # 0.7586739 1.041759e-03 0.7642857 1.392934e-03 1 CD14 15 0.040035613 0.08174293 (rank 65 / 2498 based on Pearson.est)
+  
   
   # what about other drugs
   indPred <- data.frame()
@@ -609,6 +620,12 @@ optMonoSig <- function(frac.meta, temp.sig, BeatAML, type="global", gmt) {
   indPred$Pearson.q <- qvalue::qvalue(indPred$Pearson.p, pi0=1)$qvalue
   indPred$Spearman.q <- qvalue::qvalue(indPred$Spearman.p, pi0=1)$qvalue
   write.csv(indPred, "monoFracPrediction_sortedBead_1GeneAll.csv", row.names = FALSE) # CD93: pearson r 0.6326378, p 3.618788e-12, q 9.057827e-09; spearman rho 0.5979159, p 1.003341e-10, q 8.371211e-08
+  # 0.496935085	2.25E-07	0.535276572	1.62E-08	1	CD14	97	1.41E-05	1.39E-06 (rank 41 by Pearson.est)
+  # 0.231769655	0.022355499	0.07091542	0.49003613	1	CD34	97	0.045940734	0.55175908 (rank 1221)
+  # 0.351859294	0.000408995	0.321062822	0.001343852	1	BCL2	97	0.00215519	0.004220402 (rank 477)
+  # 0.522081296	4.15E-08	0.556290752	3.30E-09	1	NCF2	97	5.62E-06	5.58E-07 (rank 19)
+  # 0.47261114	1.02E-06	0.521189999	4.42E-08	1	PLBD1	97	3.50E-05	2.76E-06 (rank 74)
+  # note: % monocytes in PB correlation with Ven AUC: r=0.408, p=0.000897, N=63; Aza+Ven AUC: r=0.584, p = 0.0594, N=11 from: "sortedAMLproteomics_20241111.pptx" in PTRC2 folder
   
   return(indPred)
   #return(list(loo = sensPred, venLoo = venPred, min=minSensPred, minSig=temp.sig2))
