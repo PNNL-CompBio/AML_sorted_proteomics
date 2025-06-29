@@ -428,15 +428,31 @@ optSig <- function(global.df100, temp.sig, BeatAML, type="global", gmt) {
     sensPred <- rbind(sensPred, temp.sens)
   }
   write.csv(sensPred, "drugSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
-  venPred <- sensPred[sensPred$Drug == "Venetoclax",]
+  venPred <- sensPred[sensPred$Drug == "Venetoclax",] # all significant
   venPred$delta <- venPred$Pearson.est - 0.704114664863842
   write.csv(venPred, "venSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
   
-  # filter for genes which increase ven correlation estimate (r)
-  venImpr <- venPred[venPred$delta>0,]
+  # filter for genes where ven correlation drops without the gene (delta < 0)
+  venImpr <- venPred[venPred$delta<0,] # 1280 / 2597
   
-  # start with gene w biggest delta>0 and increase # of genes until ven Pearson q < 0.05
-  useful <- venImpr[order(venImpr$delta, decreasing=TRUE),]$Gene
+  # start with gene w biggest impact (i.e., most negative delta) and increase # of genes until ven Pearson q < 0.05
+  useful <- venImpr[order(venImpr$delta),]$Gene # 1280
+  
+  # # check that selected genes are fully covered in ven samples
+  # # filter for genes with 3+ data points in Beat AML in samples with ven AUC
+  # venAUC <- BeatAML$drug[!is.na(BeatAML$drug$Venetoclax),c("Barcode.ID","Venetoclax")]
+  # venAUCprot <- BeatAML$global[BeatAML$global$Barcode.ID %in% venAUC$Barcode.ID,] # 9413 gene symbols
+  # colSumsVen <- colSums(is.na(venAUCprot))
+  # venAUCprot2 <- venAUCprot[,colSumsVen==0] # 6945 gene symbols including CD14, CD34
+  # useful2 <- useful[useful %in% colnames(venAUCprot2)[2:ncol(venAUCprot2)]] # 1049; 3 most useful genes kept from before this filter
+  
+  # nValVen <- 122 - colSumsVen
+  # any(nValVen < 3) # TRUE
+  # nValVen <- as.data.frame(nValVen)
+  # nValVen$Gene <- rownames(nValVen)
+  # nValVen[nValVen$Gene ]
+  # nValVen2 <- as.data.frame(nValVen[nValVen$nValVen == 122,])
+  
   usedGenes <- c()
   minSensPred <- data.frame()
   for (i in useful) {
@@ -447,15 +463,157 @@ optSig <- function(global.df100, temp.sig, BeatAML, type="global", gmt) {
       temp.sens$N_genes <- length(usedGenes)
       temp.sens$Genes <- paste0(usedGenes, collapse=", ")
       minSensPred <- rbind(minSensPred, temp.sens)
-      if (temp.sens$Pearson.q < 0.05) {
+      if (temp.sens[temp.sens$Drug=="Venetoclax",]$Pearson.q < 0.05) {
         write.csv(temp.sens, "drugSensPrediction_sortedBead_minGenes.csv", row.names = FALSE)
         write.csv(temp.sig2, "drugSensPrediction_sortedBead_minGeneSignature.csv", row.names = FALSE)
         break
       } 
     }
   }
-  return(loo = sensPred, venLoo = venPred, min=minSensPred, minSig=temp.sig2)
+  # no DMEA results with KCTD12 or S100A8; first DMEA result is with SAMHD1 which is where Ven q<0.05
+  # any(is.na(venImpr$delta)) returns FALSE so DMEA seems to have worked for the full loop with gene LOO
+  
+  # try just ven so can look at KCTD12, S100A8
+  venAUC <- BeatAML$drug[!is.na(BeatAML$drug$Venetoclax),c("Barcode.ID","Venetoclax")]
+  venAUCprot <- BeatAML$global[BeatAML$global$Barcode.ID %in% venAUC$Barcode.ID,] # 9413 gene symbols
+  
+  # calculate WV with genes
+  usedGenes <- c()
+  minSensPred <- data.frame()
+  for (i in useful[useful %in% colnames(venAUCprot)[2:ncol(venAUCprot)]]) { # 1187 gene symbols
+    usedGenes <- c(usedGenes, i)
+    temp.sig2 <- temp.sig[temp.sig$Gene %in% usedGenes,]
+    temp.wv <- DMEA::WV(venAUCprot, temp.sig2)$scores
+    venAUC.wv <- merge(venAUC, temp.wv, by="Barcode.ID")
+    temp.corr <- cor.test(venAUC.wv$Venetoclax, venAUC.wv$WV)
+    temp.sens <- data.frame(Drug="Venetoclax", Pearson.est=temp.corr$estimate, Pearson.p=temp.corr$p.value,
+                            N_genes = length(usedGenes), Genes = paste0(usedGenes, collapse=", "))
+    if (is.data.frame(temp.sens) & nrow(temp.sens) > 0){
+      minSensPred <- rbind(minSensPred, temp.sens)
+      if (temp.sens[temp.sens$Drug=="Venetoclax",]$Pearson.p < 0.05) {
+        write.csv(temp.sens, "drugSensPrediction_sortedBead_minGenes_v2.csv", row.names = FALSE)
+        write.csv(temp.sig2, "drugSensPrediction_sortedBead_minGeneSignature_v2.csv", row.names = FALSE)
+        break
+      } 
+    }
+  }
+  
+  # what if just try all genes one-by-one
+  indVenPred <- data.frame()
+  for (i in useful[useful %in% colnames(venAUCprot)[2:ncol(venAUCprot)]]) { # 1187 gene symbols
+    temp.sig2 <- temp.sig[temp.sig$Gene == i,]
+    temp.wv <- DMEA::WV(venAUCprot, temp.sig2)$scores
+    venAUC.wv <- merge(venAUC, temp.wv, by="Barcode.ID")
+    temp.corr <- cor.test(venAUC.wv$Venetoclax, venAUC.wv$WV)
+    temp.sens <- data.frame(Drug="Venetoclax", Pearson.est=temp.corr$estimate, Pearson.p=temp.corr$p.value,
+                            N_genes = 1, Genes = i)
+    if (is.data.frame(temp.sens) & nrow(temp.sens) > 0){
+      indVenPred <- rbind(indVenPred, temp.sens)
+    }
+  }
+  write.csv(indVenPred, "venSensPrediction_sortedBead_1Gene.csv", row.names = FALSE)
+  
+  indVenPred <- data.frame()
+  for (i in temp.sig$Gene[temp.sig$Gene %in% colnames(venAUCprot)[2:ncol(venAUCprot)]]) { # 2504 gene symbols
+    temp.sig2 <- temp.sig[temp.sig$Gene == i,]
+    temp.wv <- DMEA::WV(venAUCprot, temp.sig2)$scores
+    venAUC.wv <- merge(venAUC, temp.wv, by="Barcode.ID")
+    if (nrow(venAUC.wv)>2) {
+      temp.corr <- cor.test(venAUC.wv$Venetoclax, venAUC.wv$WV)
+      temp.sens <- data.frame(Drug="Venetoclax", Pearson.est=temp.corr$estimate, Pearson.p=temp.corr$p.value,
+                              N_genes = 1, Genes = i, N=nrow(venAUC.wv))
+      indVenPred <- rbind(indVenPred, temp.sens)
+    }
+  }
+  indPred$Pearson.q <- qvalue::qvalue(indPred$Pearson.p, pi0=1)$qvalue
+  indPred$Spearman.q <- qvalue::qvalue(indPred$Spearman.p, pi0=1)$qvalue
+  write.csv(indVenPred, "venSensPrediction_sortedBead_1GeneAll.csv", row.names = FALSE)
+  
+  # what about aza+ven
+  indPred <- data.frame()
+  for (d in "Azacytidine - Venetoclax") {
+    venAUC <- na.omit(BeatAML$drug[,c("Barcode.ID",d)])
+    venAUCprot <- BeatAML$global[BeatAML$global$Barcode.ID %in% venAUC$Barcode.ID,] # 9413 gene symbols
+    
+    indVenPred <- data.frame()
+    for (i in temp.sig$Gene[temp.sig$Gene %in% colnames(venAUCprot)[2:ncol(venAUCprot)]]) { # 2504 gene symbols
+      temp.sig2 <- temp.sig[temp.sig$Gene == i,]
+      temp.wv <- DMEA::WV(venAUCprot, temp.sig2)$scores
+      venAUC.wv <- merge(venAUC, temp.wv, by="Barcode.ID")
+      if (nrow(venAUC.wv) > 2) {
+        temp.corr <- cor.test(venAUC.wv[[d]], venAUC.wv$WV)
+        temp.corr.sp <- cor.test(venAUC.wv[[d]], venAUC.wv$WV, method="spearman")
+        temp.sens <- data.frame(Drug=d, Pearson.est=temp.corr$estimate, Pearson.p=temp.corr$p.value,
+                                Spearman.est=temp.corr.sp$estimate, Spearman.p = temp.corr.sp$p.value,
+                                N_genes = 1, Genes = i, N=nrow(venAUC.wv))
+        indVenPred <- rbind(indVenPred, temp.sens) 
+      }
+    }
+    indPred <- rbind(indPred, indVenPred)
+  }
+  indPred$Pearson.q <- qvalue::qvalue(indPred$Pearson.p, pi0=1)$qvalue
+  indPred$Spearman.q <- qvalue::qvalue(indPred$Spearman.p, pi0=1)$qvalue
+  write.csv(indPred, "azaVenPrediction_sortedBead_1GeneAll.csv", row.names = FALSE)
+  
+  # what about other drugs
+  indPred <- data.frame()
+  for (d in colnames(BeatAML$drug)[2:ncol(BeatAML$drug)]) {
+    venAUC <- na.omit(BeatAML$drug[,c("Barcode.ID",d)])
+    venAUCprot <- BeatAML$global[BeatAML$global$Barcode.ID %in% venAUC$Barcode.ID,] # 9413 gene symbols
+    
+    indVenPred <- data.frame()
+    for (i in temp.sig$Gene[temp.sig$Gene %in% colnames(venAUCprot)[2:ncol(venAUCprot)]]) { # 2504 gene symbols
+      temp.sig2 <- temp.sig[temp.sig$Gene == i,]
+      temp.wv <- DMEA::WV(venAUCprot, temp.sig2)$scores
+      venAUC.wv <- merge(venAUC, temp.wv, by="Barcode.ID")
+      if (nrow(venAUC.wv) > 2) {
+        temp.corr <- cor.test(venAUC.wv[[d]], venAUC.wv$WV)
+        temp.corr.sp <- cor.test(venAUC.wv[[d]], venAUC.wv$WV, method="spearman")
+        temp.sens <- data.frame(Drug=d, Pearson.est=temp.corr$estimate, Pearson.p=temp.corr$p.value,
+                                Spearman.est=temp.corr.sp$estimate, Spearman.p = temp.corr.sp$p.value,
+                                N_genes = 1, Genes = i)
+        indVenPred <- rbind(indVenPred, temp.sens) 
+      }
+    }
+    indPred <- rbind(indPred, indVenPred)
+  }
+  write.csv(indPred, "drugSensPrediction_sortedBead_1GeneAll.csv", row.names = FALSE)
+  
+  return(list(loo = sensPred, ind=indVenPred))
+  #return(list(loo = sensPred, venLoo = venPred, min=minSensPred, minSig=temp.sig2))
 }
+
+optMonoSig <- function(frac.meta, temp.sig, BeatAML, type="global", gmt) {
+  genes <- temp.sig$Gene
+  
+  # try just ven so can look at KCTD12, S100A8
+  fracProt <- BeatAML$global[BeatAML$global$Barcode.ID %in% frac.meta$Barcode.ID,] # 9413 gene symbols
+  
+  # calculate WV with genes
+  indPred <- data.frame()
+  testGenes <- genes[genes %in% colnames(fracProt)[2:ncol(fracProt)]]
+  testedGenes <- unique(indPred$Genes)
+  for (i in testGenes[!(testGenes %in% testedGenes)]) { # 2504 gene symbols
+    temp.sig2 <- temp.sig[temp.sig$Gene == i,]
+    temp.wv <- DMEA::WV(fracProt, temp.sig2)$scores
+    venAUC.wv <- merge(frac.meta, temp.wv, by="Barcode.ID")
+    if (nrow(venAUC.wv) > 2) {
+      temp.corr <- cor.test(venAUC.wv$`%.Monocytes.in.PB`, venAUC.wv$WV)
+      temp.corr.sp <- cor.test(venAUC.wv$`%.Monocytes.in.PB`, venAUC.wv$WV, method="spearman")
+      temp.sens <- data.frame(Drug="%.Monocytes.in.PB", Pearson.est=temp.corr$estimate, Pearson.p=temp.corr$p.value,
+                              Spearman.est=temp.corr.sp$estimate, Spearman.p = temp.corr.sp$p.value,
+                              N_genes = 1, Genes = i, N=nrow(venAUC.wv))
+      indPred <- rbind(indPred, temp.sens) 
+    }
+  }
+  indPred$Pearson.q <- qvalue::qvalue(indPred$Pearson.p, pi0=1)$qvalue
+  indPred$Spearman.q <- qvalue::qvalue(indPred$Spearman.p, pi0=1)$qvalue
+  write.csv(indPred, "monoFracPrediction_sortedBead_1GeneAll.csv", row.names = FALSE) # CD93: pearson r 0.6326378, p 3.618788e-12, q 9.057827e-09; spearman rho 0.5979159, p 1.003341e-10, q 8.371211e-08
+  
+  return(indPred)
+  #return(list(loo = sensPred, venLoo = venPred, min=minSensPred, minSig=temp.sig2))
+}
+
 
 #### run predictions with all genes ####
 setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
