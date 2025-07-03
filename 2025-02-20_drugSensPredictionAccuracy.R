@@ -612,6 +612,10 @@ for (i in names(sigs)) {
 }
 save_to_synapse_v2(all.DMEA.files)
 
+evalResults <- list("drug" = read.csv("predictions.csv"),
+                    "drug.corr" = read.csv("drugAccuracy.csv"),
+                    "pt.corr" = read.csv("patientAccuracy.csv"))
+
 hist(evalResults$pt.corr$Pearson.est)
 med.pt.r <- median(evalResults$pt.corr$Pearson.est) # 0.785882478840521
 sd.pt.r <- sd(evalResults$pt.corr$Pearson.est) # 0.171287467988083
@@ -937,105 +941,18 @@ for (i in sigs.tested) {
   }
 }
 
-# redo plots
-setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-dir.create("Monocyte_vs_progenitor_signatures_beadOnly_LOO_2025-05-30")
-setwd("Monocyte_vs_progenitor_signatures_beadOnly_LOO_2025-05-30")
-drug.corr.df <- read.csv("drugAccuracy.csv")
-pt.corr.df <- read.csv("patientAccuracy.csv")
-p.df <- pt.corr.df
-sigOrder <- p.df[order(p.df$Pearson.est),]$Signature
-p.df$Signature <- factor(p.df$Signature, levels=unique(sigOrder))
-ggplot2::ggplot(p.df, aes(x=Signature, y=Pearson.est)) + geom_violin(alpha=0) +
-  geom_point(#aes(color=Drug)
-  ) + 
-  geom_boxplot(width=0.2, alpha = 0) + 
-  labs(y="Pearson Correlation Estimate") + theme_classic(base_size = 12) +
-  ggtitle(paste("Monocyte signatures predict drug sensitivity"))
-ggsave(paste0("patientAccuracy","_bySignature.pdf"), width = 5, height = 5)
+base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/data/clinical_metadata/"
+setwd(base.path)
+patient.key <- readxl::read_xlsx("lab_dbgap_key.xlsx")
+patient.meta <- readxl::read_xlsx("Table_S1.xlsx",sheet=1)
+patient.meta <- as.data.frame(patient.meta)
+#rownames(patient.meta) <- patient.meta[,1]
 
-p.df <- drug.corr.df
-sigOrder <- p.df[order(p.df$Pearson.est),]$Signature
-p.df$Signature <- factor(p.df$Signature, levels=unique(sigOrder))
-ggplot2::ggplot(p.df, aes(x=Signature, y=Pearson.est)) + geom_violin(alpha=0) +
-  geom_point(#aes(color=Drug)
-  ) + 
-  geom_boxplot(width=0.2, alpha = 0) + 
-  labs(y="Pearson Correlation Estimate") + theme_classic(base_size = 12) +
-  ggtitle(paste("Monocyte signatures predict drug sensitivity"))
-ggsave(paste0("drugAccuracy","_bySignature.pdf"), width = 5, height = 5)
+# does metadata correlate Ven response?
+key.cols <- colnames(patient.meta)[colnames(patient.meta) %in% colnames(patient.key)]
+num.cols <- colnames(dplyr::select_if(patient.meta, is.numeric))
+num.meta <- dplyr::distinct(patient.meta[,c(key.cols, num.cols)])
+num.meta <- merge(patient.key, num.meta, by = key.cols)
+num.meta <- num.meta[,c("labId", num.cols[2:length(num.cols)])] # leave out dbgap_subject_id from numeric columns
 
-
-#frac.corr.df <- read.csv("cellFractionCorrelations.csv")
-
-drug.info <- read.csv("~/OneDrive - PNNL/Documents/PTRC2/BeatAML_single_drug_moa.csv",
-                      stringsAsFactors = FALSE, fileEncoding = "latin1")
-drug.info <- drug.info[,c("Drug","moa")]
-drug.info[drug.info$Drug == "Ralimetinib (LY2228820)",]$moa <- "p38 MAPK inhibitor"
-drug.info[drug.info$Drug == "Nilotinib",]$moa <- "Abl kinase inhibitor"
-drug.info[drug.info$Drug == "AT-101",]$moa <- "BCL inhibitor"
-drug.info[is.na(drug.info$moa),]$moa <- "Other"
-library(patchwork); library(ggplot2)
-pearson.plots <- NULL
-spearman.plots <- NULL
-#MOAsInTop50 <- names(gmt.drug$genesets)
-#moaColors <- grDevices::colorRampPalette(RColorBrewer::brewer.pal(12, "Set3"))(length(MOAsInTop50))
-pearson.venn <- list()
-spearman.venn <- list()
-for (i in unique(drug.corr.df$Signature)) {
-  p.df <- drug.corr.df[drug.corr.df$Signature == i,]
-  p.df$Pearson.q <- qvalue::qvalue(p = p.df$Pearson.p, pi0 = 1)$qvalues
-  p.df$Spearman.q <- qvalue::qvalue(p = p.df$Spearman.p, pi0 = 1)$qvalues
-  plot.df <- merge(p.df, drug.info, by="Drug", all.x = TRUE)
-  plot.df$Mechanism <- "Other"
-  #plot.df[plot.df$moa %in% MOAsInTop50,]$Mechanism <- plot.df[plot.df$moa %in% MOAsInTop50,]$moa
-  plot.df[grepl("Venetoclax",plot.df$Drug),]$Mechanism <- "BCL inhibitor"
-  plot.df$Drug <- sub(" [(].*", "", plot.df$Drug) # shorten drug names for plot
-  plot.df[plot.df$Drug == "NF-kB Activation Inhibitor",]$Drug <- "NFkB Inhibitor"
-  
-  rank.metrics <- c("Pearson.est", "Spearman.est")
-  for (j in rank.metrics) {
-    descr <- stringr::str_split_1(j, "[.]")[1]
-    if ("Drug" %in% colnames(plot.df)) {
-      if (j == "Pearson.est") {
-        plot.df <- plot.df[plot.df$Pearson.est > 0 & plot.df$Pearson.q <= 0.05,]
-        ylab <- paste0(descr," r")
-        pearson.venn[[i]] <- unique(plot.df$Drug)
-      } else {
-        plot.df <- plot.df[plot.df$Spearman.est > 0 & plot.df$Spearman.q <= 0.05,]
-        ylab <- paste0(descr," rho")
-        spearman.venn[[i]] <- unique(plot.df$Drug)
-      }
-      plot.df$rank <- plot.df[,j]
-      sigOrder <- na.omit(unique(plot.df[order(plot.df$rank, decreasing=TRUE),]$Drug))
-      plot.annot <- paste0(i, "\n(", nrow(plot.df), " / ", nrow(p.df), " Drugs Positively Correlated)")
-      corr.plot <- ggplot(plot.df, aes(x=Drug, y=rank, fill = Mechanism)) + 
-        geom_col() + theme_minimal(base_size = 12) + ylab(ylab) + 
-        ggplot2::scale_x_discrete(limits = sigOrder) +
-        theme(axis.text.x = element_text(angle = 45, vjust=1, hjust=1),
-              axis.title.x=element_blank()) +
-        #scale_fill_manual(breaks=MOAsInTop50, values = moaColors) +
-        ggtitle(plot.annot) + 
-        theme(plot.title = element_text(hjust = 0.5, face="bold", size=16), legend.position="bottom")
-      ggsave(paste0("Drug_DIA_WV_moaFill_",descr,"_", i, ".pdf"), corr.plot, width = 10, height = 5)
-      if (is.null(pearson.plots) & j == "Pearson.est") {
-        pearson.plots <- (corr.plot + theme(legend.position = "none"))
-      } else if (j == "Pearson.est") {
-        pearson.plots <- pearson.plots / (corr.plot + theme(legend.position = "none"))
-      } else if (is.null(spearman.plots) & j == "Spearman.est") {
-        spearman.plots <- (corr.plot + theme(legend.position = "none"))
-      } else if (j == "Spearman.est") {
-        spearman.plots <- spearman.plots / (corr.plot + theme(legend.position = "none"))
-      }
-    }
-  }
-}
-#source("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/MPNST/Chr8/MPNST_Chr8_manuscript/Figure_3_Kinase/guides_build_mod.R")
-#pearson.plots <- (pearson.plots / plot_spacer()) + plot_layout(guides='collect')
-#pearson.plots <- pearson.plots + theme(legend.position = "none")
-ggplot2::ggsave("Drug_DIA_WV_moaFill_Pearson_allSigs.pdf", pearson.plots, width=12, height=12)
-ggplot2::ggsave("Drug_DIA_WV_moaFill_Spearman_allSigs.pdf", spearman.plots, width=12, height=12)
-ggvenn::ggvenn(pearson.venn, show_percentage=FALSE, set_name_size=5, text_size=5)
-ggsave("Drug_DIA_WV_Pearson_sigOverlap.pdf", width=5, height=5)
-ggvenn::ggvenn(spearman.venn, show_percentage=FALSE, set_name_size=5, text_size=5)
-ggsave("Drug_DIA_WV_Spearman_sigOverlap.pdf", width=5, height=5)
+# correlation between NCF2 protein or LRRC25 RNA and Ven sensitivity
