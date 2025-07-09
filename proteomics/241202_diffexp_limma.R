@@ -153,16 +153,16 @@ nrow(diffexp.result[diffexp.result$adj.P.Val <= 0.05,]) # 4754
 
 #### 2. Lasry et al ####
 #lasry <- Matrix::readMM("~/Downloads/lasry/RNA_soupX_data.mtx.gz")
-lmeta <- read.csv("~/Downloads/lasry/metadata_clustering_w_header_upd.csv")
+lmeta <- read.csv("~/Documents/misc/lasry/metadata_clustering_w_header_upd.csv")
 lmeta <- lmeta[2:nrow(lmeta),]
 lmeta <- lmeta[lmeta$ap_aml_age == "adult_AML" & lmeta$malignant=="malignant",]
 #lcells <- read.csv("~/Downloads/lasry/cells_RNA_soupX_data.csv", header = FALSE)
 #lgenes <- read.csv("~/Downloads/lasry/features_RNA_soupX_data.csv", header = FALSE)
 
 # create seurat object
-lasry <- Seurat::ReadMtx(mtx = "~/Downloads/lasry/RNA_soupX_data.mtx.gz", 
-                         features = "~/Downloads/lasry/features_RNA_soupX_data.csv",
-                         cells = "~/Downloads/lasry/cells_RNA_soupX_data.csv",
+lasry <- Seurat::ReadMtx(mtx = "~/Documents/misc/lasry/RNA_soupX_data.mtx.gz", 
+                         features = "~/Documents/misc/lasry/features_RNA_soupX_data.csv",
+                         cells = "~/Documents/misc/lasry/cells_RNA_soupX_data.csv",
                          feature.column = 1)
 rownames(lmeta) <- lmeta$NAME
 lasry.seur <- CreateSeuratObject(counts = lasry, meta.data = lmeta)
@@ -176,10 +176,12 @@ rownames(factor.df) <- paste0(factor.df$Broad_cell_identity,"_",factor.df$orig.i
 #factor.df$orig.ident <- NULL
 
 # mono-like vs. prog-like
-cell.selection <- c("CD14+ monocyte", "HSC")
+#cell.selection <- c("CD14+ monocyte", "HSC")
+cell.selection <- c("CD14+ monocyte", "MPP")
 factor.df1 <- factor.df[factor.df$Broad_cell_identity %in% cell.selection,]
 factor.df1[factor.df1$Broad_cell_identity == "CD14+ monocyte",]$Broad_cell_identity <- "Mono"
-factor.df1$Broad_cell_identity <- factor(factor.df1$Broad_cell_identity, levels = c("Mono", "HSC"))
+#factor.df1$Broad_cell_identity <- factor(factor.df1$Broad_cell_identity, levels = c("Mono", "HSC"))
+factor.df1$Broad_cell_identity <- factor(factor.df1$Broad_cell_identity, levels = c("Mono", "MPP"))
 
 input.df <- as.data.frame(lasry.df$RNA)
 keepCols <- colnames(input.df)
@@ -189,35 +191,93 @@ factor.df1$orig.ident <- NULL
 input.df <- input.df[,keepCols]
 input.df$Gene <- rownames(input.df)
 input.list <- list("Lasry" = input.df)
+factor.df1 <- na.omit(factor.df1)
 diffexp <- panSEA::mDEG(input.list, factor.df1)
-write.csv(na.omit(diffexp$all.results$Lasry), file.path(external.path,"formatted/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC.csv"), row.names = FALSE)
+write.csv(na.omit(diffexp$all.results$Lasry), file.path(external.path,"formatted/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_MPP.csv"), row.names = FALSE)
 
-#diffexp.result <- read.csv(file.path(external.path,"formatted/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HS.csv")) # 27899
-diffexp.result <- na.omit(diffexp$all.results$Lasry) # 19014
+#diffexp.result <- read.csv(file.path(external.path,"formatted/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HS.csv"))
+diffexp.result <- na.omit(diffexp$all.results$Lasry) # 22744
 txs <- transcripts(edb, filter=GeneNameFilter(diffexp.result$Gene), columns = "tx_biotype")
 protein.coding.genes <- txs[txs$tx_biotype == "protein_coding",]$gene_name
-diffexp.result <- diffexp.result[diffexp.result$Gene %in% protein.coding.genes,] # 13631
-write.csv(diffexp.result, file.path(external.path,"formatted/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv"), row.names = FALSE)
-nrow(diffexp.result[diffexp.result$adj.P.Val <= 0.05,]) # 7544
+diffexp.result <- diffexp.result[diffexp.result$Gene %in% protein.coding.genes,] # 15078
+write.csv(diffexp.result, file.path(external.path,"formatted/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_MPP_protein-coding.csv"), row.names = FALSE)
+nrow(diffexp.result[diffexp.result$adj.P.Val <= 0.05,]) # 910
 
-# mono-like vs. other
-cell.selection <- c("CD14+ monocyte", "HSC", "MPP")
-factor.df2 <- factor.df[factor.df$Broad_cell_identity %in% cell.selection,]
-factor.df2[factor.df2$Broad_cell_identity == "CD14+ monocyte",]$Broad_cell_identity <- "Mono"
-factor.df2[factor.df2$Broad_cell_identity != "CD14+ monocyte",]$Broad_cell_identity <- "Other"
-factor.df2$Broad_cell_identity <- factor(factor.df2$Broad_cell_identity, levels = c("Mono", "Other"))
+# # mono-like vs. other
+# cell.selection <- c("CD14+ monocyte", "HSC", "MPP")
+# factor.df2 <- factor.df[factor.df$Broad_cell_identity %in% cell.selection,]
+# factor.df2[factor.df2$Broad_cell_identity == "CD14+ monocyte",]$Broad_cell_identity <- "Mono"
+# factor.df2[factor.df2$Broad_cell_identity != "CD14+ monocyte",]$Broad_cell_identity <- "Other"
+# factor.df2$Broad_cell_identity <- factor(factor.df2$Broad_cell_identity, levels = c("Mono", "Other"))
+# 
+# input.df <- as.data.frame(lasry.df$RNA)
+# keepCols <- colnames(input.df)
+# keepCols <- keepCols[keepCols %in% rownames(factor.df2)]
+# factor.df2 <- factor.df2[rownames(factor.df2)[rownames(factor.df2) %in% colnames(input.df)],]
+# factor.df2$orig.ident <- NULL
+# input.df <- input.df[,keepCols]
+# input.df$Gene <- rownames(input.df)
+# input.list <- list("Lasry" = input.df)
+# diffexp <- panSEA::mDEG(input.list, factor.df2)
+# #write.csv(na.omit(diffexp$all.results$Lasry), file.path(external.path,"formatted/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSCandMPP.csv"), row.names = FALSE)
+# # Coefficients not estimable: Mono 
+# # Error in limma::contrasts.fit(fit, cont.matrix) : 
+# #   trying to take contrast of non-estimable coefficient
+# # were there only mono-like instead of monocyte in van Galen because I filtered for malignant?
+
+#### 2.1 Lasry et al - not filtered for malignant ####
+#lasry <- Matrix::readMM("~/Downloads/lasry/RNA_soupX_data.mtx.gz")
+lmeta <- read.csv("~/Documents/misc/lasry/metadata_clustering_w_header_upd.csv")
+lmeta <- lmeta[2:nrow(lmeta),]
+lmeta <- lmeta[lmeta$ap_aml_age == "adult_AML",]
+#lcells <- read.csv("~/Downloads/lasry/cells_RNA_soupX_data.csv", header = FALSE)
+#lgenes <- read.csv("~/Downloads/lasry/features_RNA_soupX_data.csv", header = FALSE)
+
+# create seurat object
+lasry <- Seurat::ReadMtx(mtx = "~/Documents/misc/lasry/RNA_soupX_data.mtx.gz", 
+                         features = "~/Documents/misc/lasry/features_RNA_soupX_data.csv",
+                         cells = "~/Documents/misc/lasry/cells_RNA_soupX_data.csv",
+                         feature.column = 1)
+rownames(lmeta) <- lmeta$NAME
+lasry.seur <- CreateSeuratObject(counts = lasry, meta.data = lmeta)
+
+# aggregate counts for cell type_patient level
+lasry.df <- AggregateExpression(lasry.seur, group.by = c("Broad_cell_identity", "orig.ident"))
+
+# extract data for relevant samples
+factor.df <- as.data.frame(dplyr::distinct(lmeta[,c("Broad_cell_identity","orig.ident")]))
+rownames(factor.df) <- paste0(factor.df$Broad_cell_identity,"_",factor.df$orig.ident)
+#factor.df$orig.ident <- NULL
+unique(factor.df$Broad_cell_identity)
+# [1] "HSC"               "MPP"               "Ery"               "CD14+ monocyte"    "HLA-II+ monocyte"  "CD4+ T"            "Granulocyte"       "CD8+ T"           
+# [9] "GMP"               "CD11c+"            "NK"                "MEP"               "B"                 "DC precursor"      "CD16+ monocyte"    "cDC2"             
+# [17] "MAIT"              "LymP"              "cDC1"              "gd T"              "Plasmablast"       "Plasma cell"       "pDC"               "Megakaryocyte"    
+# [25] "Pre-B"             "Perivascular cell" "Pro-B" 
+
+# mono-like vs. prog-like
+#cell.selection <- c("CD14+ monocyte", "HSC")
+cell.selection <- c("CD14+ monocyte", "MPP")
+factor.df1 <- factor.df[factor.df$Broad_cell_identity %in% cell.selection,]
+factor.df1[factor.df1$Broad_cell_identity == "CD14+ monocyte",]$Broad_cell_identity <- "Mono"
+#factor.df1$Broad_cell_identity <- factor(factor.df1$Broad_cell_identity, levels = c("Mono", "HSC"))
+factor.df1$Broad_cell_identity <- factor(factor.df1$Broad_cell_identity, levels = c("Mono", "MPP"))
 
 input.df <- as.data.frame(lasry.df$RNA)
 keepCols <- colnames(input.df)
-keepCols <- keepCols[keepCols %in% rownames(factor.df2)]
-factor.df2 <- factor.df2[rownames(factor.df2)[rownames(factor.df2) %in% colnames(input.df)],]
-factor.df2$orig.ident <- NULL
+keepCols <- keepCols[keepCols %in% rownames(factor.df1)]
+factor.df1 <- factor.df1[colnames(input.df),]
+factor.df1$orig.ident <- NULL
+factor.df1 <- na.omit(factor.df1)
 input.df <- input.df[,keepCols]
 input.df$Gene <- rownames(input.df)
 input.list <- list("Lasry" = input.df)
-diffexp <- panSEA::mDEG(input.list, factor.df2)
-#write.csv(na.omit(diffexp$all.results$Lasry), file.path(external.path,"formatted/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSCandMPP.csv"), row.names = FALSE)
-# Coefficients not estimable: Mono 
-# Error in limma::contrasts.fit(fit, cont.matrix) : 
-#   trying to take contrast of non-estimable coefficient
-# were there only mono-like instead of monocyte in van Galen because I filtered for malignant?
+diffexp <- panSEA::mDEG(input.list, factor.df1)
+write.csv(na.omit(diffexp$all.results$Lasry), file.path(external.path,"formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_MPP.csv"), row.names = FALSE)
+
+#diffexp.result <- read.csv(file.path(external.path,"formatted/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HS.csv")) # 27899
+diffexp.result <- na.omit(diffexp$all.results$Lasry) # 22896
+txs <- transcripts(edb, filter=GeneNameFilter(diffexp.result$Gene), columns = "tx_biotype")
+protein.coding.genes <- txs[txs$tx_biotype == "protein_coding",]$gene_name
+diffexp.result <- diffexp.result[diffexp.result$Gene %in% protein.coding.genes,] # 15136
+write.csv(diffexp.result, file.path(external.path,"formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_MPP_protein-coding.csv"), row.names = FALSE)
+nrow(diffexp.result[diffexp.result$adj.P.Val <= 0.05,]) # 922
