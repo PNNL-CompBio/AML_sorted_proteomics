@@ -12,6 +12,8 @@ library(plyr)
 library(dplyr)
 synapser::synLogin()
 
+source("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/helperScripts/circBar.R")
+source("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/helperScripts/panSEA_helper_20240913.R")
 evalOneMonoSig <- function(global.df100, frac.df, temp.sig, BeatAML, type="rna", gmt) {
   temp.sig <- na.omit(temp.sig)
   if (nrow(temp.sig) > 0) {
@@ -817,6 +819,42 @@ optVenSigs <- function(sigs, BeatAML, types=c("global","rna","rna","rna")) {
   return(allPred)
 }
 
+optVen <- function(BeatAML, types=c("global","rna")) {
+  venAUC <- BeatAML$drug[!is.na(BeatAML$drug$Venetoclax),c("Barcode.ID","Venetoclax")]
+  
+  allPred <- data.frame()
+  for (t in types) {
+    venAUCprot <- BeatAML[[t]][BeatAML[[t]]$Barcode.ID %in% venAUC$Barcode.ID,] # 9413 gene symbols
+    
+    # keep genes with 3+ unique non-NA values
+    keepGenes <- names(venAUCprot)[sapply(venAUCprot, function(x) length(na.omit(unique(x)))) >= 3]
+    venAUCprot <- venAUCprot[,keepGenes]
+    
+    indVenPred <- data.frame()
+    for (i in colnames(venAUCprot)[2:ncol(venAUCprot)]) { # 2504 gene symbols
+      temp.sig2 <- data.frame(Gene=i, Log2FC=1)
+      
+      temp.wv <- DMEA::WV(venAUCprot, temp.sig2)$scores
+      venAUC.wv <- merge(venAUC, temp.wv, by="Barcode.ID")
+      if (nrow(venAUC.wv)>2) {
+        temp.corr <- cor.test(venAUC.wv$Venetoclax, venAUC.wv$WV)
+        temp.corr.sp <- cor.test(venAUC.wv$Venetoclax, venAUC.wv$WV, method="spearman")
+        temp.sens <- data.frame(Drug="Venetoclax", Pearson.est=temp.corr$estimate, Pearson.p=temp.corr$p.value,
+                                Spearman.est=temp.corr.sp$estimate, Spearman.p=temp.corr.sp$p.value,
+                                N_genes = 1, Genes = i, N=nrow(venAUC.wv))
+        indVenPred <- rbind(indVenPred, temp.sens)
+      }
+    }
+    indVenPred$Pearson.q <- qvalue::qvalue(indVenPred$Pearson.p, pi0=1)$qvalue
+    indVenPred$Spearman.q <- qvalue::qvalue(indVenPred$Spearman.p, pi0=1)$qvalue
+    indVenPred$Weighted <- FALSE
+    indVenPred$Signature <- NA
+    indVenPred$DataType <- t
+    allPred <- rbind(allPred, indVenPred)
+  }
+  return(allPred)
+}
+
 
 #### run predictions with all genes ####
 setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
@@ -846,10 +884,16 @@ gmt.drug <- readRDS("gmt_BeatAML_drug_MOA_2025-01-20.rds")
 # global.df100 <- global.df100[!grepl("flow",global.df100$Sample, ignore.case=TRUE),] # 17 samples
 
 # load sorted proteomics signature
+# sig.paths <- list("Sorted" = "analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+#                   "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv",
+#                   "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
+#                   "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv")
+
+
 sig.paths <- list("Sorted" = "analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
-                  "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv",
-                  "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
-                  "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv")
+                  "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_protein-coding.csv",
+                  "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression_protein-coding.csv",
+                  "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_MPP_protein-coding.csv")
 #cd14.sig <- na.omit(read.csv(synapser::synGet("syn64543462")$path)) # DIA
 
 dia.wo.out <- readRDS("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/DIA_2batches_noOutliers.rds")
@@ -877,9 +921,9 @@ for (i in colorOrder) {
   venn.list[[i]] <- unique(sigs[[i]]$Gene)
 }
 library(ggvenn)
-
+fillVals = RColorBrewer::brewer.pal(length(sigs), "Set2")
 ggvenn::ggvenn(venn.list, show_percentage = FALSE, fill_color=fillVals, set_name_size=5, text_size=5)
-ggsave("mono_vs_prog_signature_vennDiagram.pdf",width=7, height=7)
+ggsave(paste0("mono_vs_prog_signature_vennDiagram_",Sys.Date(),".pdf"),width=7, height=7)
 
 # run correlations between signatures
 sig.df <- data.table::rbindlist(sigs, use.names=TRUE, idcol="Signature")
@@ -893,14 +937,19 @@ for (i in colorOrder) {
   temp.corr$Signature <- i
   corr <- rbind(corr, temp.corr)
 }
-write.csv(corr, "mono_vs_prog_signature_correlations.csv", row.names=FALSE) # all significant
-write.csv(corr, "mono_vs_prog_signature_correlations_withSelfCorr.csv", row.names=FALSE) # all significant
+write.csv(corr, paste0("mono_vs_prog_signature_correlations_withSelfCorr_",Sys.Date(),".csv"), row.names=FALSE) # all significant
 #maxAbsEst <- max(abs(corr$Pearson.est))
 corr$Pearson.est <- as.numeric(corr$Pearson.est)
+corr$Signature <- as.character(corr$Signature)
+corr$Drug <- as.character(corr$Drug)
+sigOrder <- corr[corr$Drug == "Sorted",]
+sigOrder <- sigOrder[order(sigOrder$Pearson.est, decreasing=TRUE),]$Signature
+corr$Signature <- factor(corr$Signature, levels=sigOrder)
+corr$Drug <- factor(corr$Drug, levels=sigOrder)
 ggplot(corr, aes(x=Drug, y=Signature, fill=Pearson.est)) + geom_tile() + 
   scale_fill_gradient2(limits=c(-1,1), low="blue", mid="grey", high="red")+labs(fill="Pearson r")+
   theme_minimal(base_size=16) + theme(axis.text=element_text(vjust=1, hjust=1, angle=45), axis.title=element_blank())
-ggsave("mono_vs_prog_signature_correlations_withSelfCorr.pdf", width=4, height=2.5)
+ggsave(paste0("mono_vs_prog_signature_correlations_withSelfCorr_orderBySortedR_",Sys.Date(),".pdf"), width=4, height=2.5)
 
 # load cell fraction data
 base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/data/clinical_metadata/"
@@ -921,8 +970,8 @@ colnames(frac.meta)[1] <- "Barcode.ID"
 #frac.meta$labId <- sub(".*-","X",frac.meta$labId) # don't need to exclude sorted patients here because they are already excluded from global data
 
 setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
-setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
+dir.create(paste0("Monocyte_vs_progenitor_signatures_beadOnly_",Sys.Date()))
+setwd(paste0("Monocyte_vs_progenitor_signatures_beadOnly_",Sys.Date()))
 
 # sorted.patients <- c("18-00105", "21-00839", "22-00571", "22-00117", "16-01184",
 #                      "19-00074", "18-00103", "21-00432", "17-01060", "22-00251")
@@ -960,8 +1009,7 @@ save_to_synapse_v2(all.DMEA.files#, "syn64606612"
 
 # redo plots
 setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-#dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
-setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
+setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-07-09")
 drug.corr.df <- read.csv("drugCorrelations.csv")
 frac.corr.df <- read.csv("cellFractionCorrelations.csv")
 
@@ -1000,155 +1048,7 @@ for (i in rank.metrics) {
     #ggtitle(paste("Monocytic signatures predict", j, "sensitivity"))
   ggsave(paste0(j,"_Corr_DIA_WV_signatureFill_barPlot_",descr,"_", Sys.Date(), ".pdf"), width = 2, height = 2)
   
-  # mono fraction
-  plot.df <- frac.corr.df
-  plot.df$rank <- plot.df[,i]
-  sigOrder <- plot.df[order(plot.df$rank, decreasing=TRUE),]$Signature
-  ggplot(plot.df, aes(x=Signature, y=rank, fill = Signature)) + 
-    geom_col(alpha=0.5, show.legend=FALSE) + theme_classic(base_size = 12) + ylab(ylab) + 
-    theme(axis.title.x=element_blank(), 
-          axis.title.y=element_text(size=16),
-          axis.text.x=element_text(size=16, angle=45, vjust=1,hjust=1)) +
-    ggplot2::scale_x_discrete(limits = sigOrder) +
-    scale_fill_manual(values=fillVals, 
-                      breaks=c("Sorted","Lasry","Triana","van Galen"))#+
-    #ggtitle("Monocytic signatures predict monocyte fraction")
-  ggsave(paste0("fracCorr_DIA_WV_",descr,"_signatureFill_", Sys.Date(),".pdf"), width = 2, height = 2)
-}
-
-#### find min number of important genes ####
-setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-setwd("data")
-
-gmt.drug <- readRDS("gmt_BeatAML_drug_MOA_2025-01-20.rds")
-
-# load sorted proteomics signature
-sig.paths <- list("Sorted" = "analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
-                  "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv",
-                  "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
-                  "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv")
-
-dia.wo.out <- readRDS("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/DIA_2batches_noOutliers.rds")
-
-global.df <- dia.wo.out$global
-#rownames(global.df) <- global.df$Gene
-#global.df$Gene <- NULL
-global.df <- as.data.frame(t(global.df))
-global.df$Sample <- rownames(global.df)
-global.df <- global.df[,c("Sample", colnames(global.df)[1:(ncol(global.df)-1)])]
-global.df100 <- global.df[,colSums(is.na(global.df)) == 0]
-global.df100 <- global.df100[!grepl("_f_",global.df100$Sample, ignore.case=TRUE),] # 39 samples out of 51, 4417 proteins out of 6888
-
-sorted.patients <- unique(dia.wo.out$meta$patient)
-BeatAML <- load_not_norm_BeatAML_for_DMEA3(exclude.samples=sorted.patients)
-
-# import signatures and filter
-sigs <- list()
-setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-for (i in names(sig.paths)) {
-  sigs[[i]] <- read.csv(sig.paths[[i]])
-  sigs[[i]] <- na.omit(sigs[[i]][sigs[[i]]$adj.P.Val <= 0.05,c("Gene","Log2FC")])
-}
-
-
-# optimize sorted sig
-optSorted <- optSig(global.df100, sigs[["Sorted"]], BeatAML=BeatAML, type="global", gmt=gmt.drug)
-#write.csv(optSorted$loo, "drugSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
-#write.csv(optSorted$venLoo, "venSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
-#write.csv(optSorted$min, "drugSensPrediction_sortedBead_minGenes.csv", row.names = FALSE)
-#write.csv(optSorted$minSig, "drugSensPrediction_sortedBead_minGeneSignature.csv", row.names = FALSE)
-
-venn.list <- list()
-colorOrder <- c("Sorted","Lasry","Triana","van Galen")
-for (i in colorOrder) {
-  venn.list[[i]] <- unique(sigs[[i]]$Gene)
-}
-library(ggvenn)
-
-ggvenn::ggvenn(venn.list, show_percentage = FALSE, fill_color=fillVals, set_name_size=5, text_size=5)
-ggsave("mono_vs_prog_signature_vennDiagram.pdf",width=7, height=7)
-
-# run correlations between signatures
-sig.df <- data.table::rbindlist(sigs, use.names=TRUE, idcol="Signature")
-sig.df <- reshape2::dcast(sig.df, Gene ~ Signature, value.var="Log2FC")
-corr <- data.frame()
-for (i in colorOrder) {
-  otherSigs <- colorOrder[colorOrder != i]
-  temp.input <- sig.df[,c("Gene",i,otherSigs)]
-  temp.corr <- DMEA::rank_corr(temp.input,plots=FALSE)$result
-  temp.corr[nrow(temp.corr)+1,] <- c(i,1,rep(NA, ncol(temp.corr)-2))
-  temp.corr$Signature <- i
-  corr <- rbind(corr, temp.corr)
-}
-write.csv(corr, "mono_vs_prog_signature_correlations.csv", row.names=FALSE) # all significant
-write.csv(corr, "mono_vs_prog_signature_correlations_withSelfCorr.csv", row.names=FALSE) # all significant
-#maxAbsEst <- max(abs(corr$Pearson.est))
-corr$Pearson.est <- as.numeric(corr$Pearson.est)
-ggplot(corr, aes(x=Drug, y=Signature, fill=Pearson.est)) + geom_tile() + 
-  scale_fill_gradient2(limits=c(-1,1), low="blue", mid="grey", high="red")+labs(fill="Pearson r")+
-  theme_minimal(base_size=16) + theme(axis.text=element_text(vjust=1, hjust=1, angle=45), axis.title=element_blank())
-ggsave("mono_vs_prog_signature_correlations_withSelfCorr.pdf", width=4, height=2.5)
-
-setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
-setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
-
-sorted.patients <- unique(dia.wo.out$meta$patient)
-BeatAML <- load_not_norm_BeatAML_for_DMEA3(exclude.samples=sorted.patients)
-
-
-# redo plots
-setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-06-30")
-setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-06-30")
-pred <- optVenSigs(sigs, BeatAML)
-pred[pred$Signature==1,]$Signature <- names(sigs)[1]
-pred[pred$Signature==2,]$Signature <- names(sigs)[2]
-pred[pred$Signature==3,]$Signature <- names(sigs)[3]
-pred[pred$Signature==4,]$Signature <- names(sigs)[4]
-write.csv(pred, "venSensPredictions_2025-06-30.csv", row.names=FALSE)
-# best are:
-# Venetoclax 0.8133223 3.292705e-26 0.8022521 0 11 LRRC25, HMOX1, LRP1, SLC15A3, LILRB2, LILRA6, COTL1, CHST15, RBM47, FCGRT, SGSH 106 2.750886e-25 0 FALSE Lasry
-
-ggplot(pred[pred$Pearson.q <= 0.05,], aes(x=N_genes, y=Pearson.est, color=Signature, shape=Weighted, alpha=N)) +
-  geom_point() + geom_smooth(se=FALSE, linetype="dashed") + theme_classic() + scale_x_continuous(transform = "log10") +
-  geom_hline(yintercept =0, linetype="dashed", color="gray")+labs(x="# of Genes", y="Pearson Correlation Estimate") + 
-  ggrepel::geom_label_repel(data=rbind(pred[pred$Signature=="Sorted" & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE),
-                                       pred[pred$Signature=="Lasry" & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE)),
-                            aes(label=Genes))
-ggsave("Ngenes_allSigs_PearsonEst_wLabelandNalpha.pdf", width=5, height=3)
-
-ggplot(pred[pred$N_genes==1 & pred$Pearson.q<=0.05,], 
-       aes(x=Pearson.est, y=-log10(Pearson.p), color=Signature, shape=Weighted, alpha=N)) +
-  geom_point() + theme_classic() +
-  geom_hline(yintercept =-log10(0.05), linetype="dashed", color="gray")+
-  labs(y="-Log(P-value)", x="Pearson Correlation Estimate") + 
-  ggrepel::geom_label_repel(data=rbind(pred[pred$N_genes==1 & pred$Pearson.q<=0.05,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
-                                       pred[pred$N_genes==1 & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE)),
-                            aes(label=Genes))
-ggsave("1gene_allSigs_PearsonEst_withNalpha.pdf", width=4, height=3)
-
-topPred <- rbind(pred[pred$N_genes==1 & pred$Pearson.q<=0.05,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
-                 pred[pred$N_genes==1 & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE),
-                 pred[pred$Signature=="Sorted" & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE),
-                 pred[pred$Signature=="Lasry" & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE))
-write.csv(topPred, "topVenSensPredictions_2025-06-30.csv", row.names=FALSE)
-
-drug.corr.df <- read.csv("drugCorrelations.csv")
-frac.corr.df <- read.csv("cellFractionCorrelations.csv")
-
-fillVals = RColorBrewer::brewer.pal(length(sigs), "Set2")
-rank.metrics <- c("Pearson.est", "Spearman.est")
-for (i in rank.metrics) {
-  descr <- stringr::str_split_1(i, "[.]")[1]
-  if (descr == "Pearson") {
-    ylab <- "Pearson r"
-  } else {
-    ylab <- "Spearman rho"
-  }
-  
-  # drug sensitivity
-  j <- "Aza + Ven"
+  j <- "Ven"
   plot.df <- drug.corr.df[drug.corr.df$`Drug.Treatment` == j,]
   plot.df$rank <- plot.df[,i]
   sigOrder <- na.omit(unique(plot.df[order(plot.df$rank, decreasing=TRUE),]$Signature))
@@ -1184,6 +1084,241 @@ for (i in rank.metrics) {
     ggplot2::scale_x_discrete(limits = sigOrder) +
     scale_fill_manual(values=fillVals, 
                       breaks=c("Sorted","Lasry","Triana","van Galen"))#+
-  #ggtitle("Monocytic signatures predict monocyte fraction")
+    #ggtitle("Monocytic signatures predict monocyte fraction")
   ggsave(paste0("fracCorr_DIA_WV_",descr,"_signatureFill_", Sys.Date(),".pdf"), width = 2, height = 2)
 }
+
+#### find min number of important genes ####
+setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+setwd("data")
+
+gmt.drug <- readRDS("gmt_BeatAML_drug_MOA_2025-01-20.rds")
+
+# load sorted proteomics signature
+# sig.paths <- list("Sorted" = "analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+#                   "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv",
+#                   "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
+#                   "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv")
+
+sig.paths <- list("Sorted" = "analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+                  "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_protein-coding.csv",
+                  "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression_protein-coding.csv",
+                  "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_MPP_protein-coding.csv")
+
+
+dia.wo.out <- readRDS("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/DIA_2batches_noOutliers.rds")
+
+global.df <- dia.wo.out$global
+#rownames(global.df) <- global.df$Gene
+#global.df$Gene <- NULL
+global.df <- as.data.frame(t(global.df))
+global.df$Sample <- rownames(global.df)
+global.df <- global.df[,c("Sample", colnames(global.df)[1:(ncol(global.df)-1)])]
+global.df100 <- global.df[,colSums(is.na(global.df)) == 0]
+global.df100 <- global.df100[!grepl("_f_",global.df100$Sample, ignore.case=TRUE),] # 39 samples out of 51, 4417 proteins out of 6888
+
+sorted.patients <- unique(dia.wo.out$meta$patient)
+BeatAML <- load_not_norm_BeatAML_for_DMEA3(exclude.samples=sorted.patients)
+
+# import signatures and filter
+sigs <- list()
+setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+for (i in names(sig.paths)) {
+  sigs[[i]] <- read.csv(sig.paths[[i]])
+  sigs[[i]] <- na.omit(sigs[[i]][sigs[[i]]$adj.P.Val <= 0.05,c("Gene","Log2FC")])
+}
+
+# 
+# # optimize sorted sig
+# optSorted <- optSig(global.df100, sigs[["Sorted"]], BeatAML=BeatAML, type="global", gmt=gmt.drug)
+# #write.csv(optSorted$loo, "drugSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
+# #write.csv(optSorted$venLoo, "venSensPrediction_sortedBead_geneLOO.csv", row.names = FALSE)
+# #write.csv(optSorted$min, "drugSensPrediction_sortedBead_minGenes.csv", row.names = FALSE)
+# #write.csv(optSorted$minSig, "drugSensPrediction_sortedBead_minGeneSignature.csv", row.names = FALSE)
+# 
+# venn.list <- list()
+# colorOrder <- c("Sorted","Lasry","Triana","van Galen")
+# for (i in colorOrder) {
+#   venn.list[[i]] <- unique(sigs[[i]]$Gene)
+# }
+# library(ggvenn)
+# 
+# ggvenn::ggvenn(venn.list, show_percentage = FALSE, fill_color=fillVals, set_name_size=5, text_size=5)
+# ggsave("mono_vs_prog_signature_vennDiagram.pdf",width=7, height=7)
+# 
+# # run correlations between signatures
+# sig.df <- data.table::rbindlist(sigs, use.names=TRUE, idcol="Signature")
+# sig.df <- reshape2::dcast(sig.df, Gene ~ Signature, value.var="Log2FC")
+# corr <- data.frame()
+# for (i in colorOrder) {
+#   otherSigs <- colorOrder[colorOrder != i]
+#   temp.input <- sig.df[,c("Gene",i,otherSigs)]
+#   temp.corr <- DMEA::rank_corr(temp.input,plots=FALSE)$result
+#   temp.corr[nrow(temp.corr)+1,] <- c(i,1,rep(NA, ncol(temp.corr)-2))
+#   temp.corr$Signature <- i
+#   corr <- rbind(corr, temp.corr)
+# }
+# write.csv(corr, "mono_vs_prog_signature_correlations.csv", row.names=FALSE) # all significant
+# write.csv(corr, "mono_vs_prog_signature_correlations_withSelfCorr.csv", row.names=FALSE) # all significant
+# #maxAbsEst <- max(abs(corr$Pearson.est))
+# corr$Pearson.est <- as.numeric(corr$Pearson.est)
+# ggplot(corr, aes(x=Drug, y=Signature, fill=Pearson.est)) + geom_tile() + 
+#   scale_fill_gradient2(limits=c(-1,1), low="blue", mid="grey", high="red")+labs(fill="Pearson r")+
+#   theme_minimal(base_size=16) + theme(axis.text=element_text(vjust=1, hjust=1, angle=45), axis.title=element_blank())
+# ggsave("mono_vs_prog_signature_correlations_withSelfCorr.pdf", width=4, height=2.5)
+# 
+# setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+# dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
+# setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-05-30")
+# 
+# sorted.patients <- unique(dia.wo.out$meta$patient)
+# BeatAML <- load_not_norm_BeatAML_for_DMEA3(exclude.samples=sorted.patients)
+# 
+
+# redo plots
+setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-07-09")
+pred <- optVenSigs(sigs, BeatAML)
+pred$DataType <- "rna"
+pred[pred$Signature=="Sorted",]$DataType <- "global"
+pred$ProteinCoding <- FALSE
+library(ensembldb)
+BiocManager::install("EnsDb.Hsapiens.v86")
+library(EnsDb.Hsapiens.v86)
+edb <- EnsDb.Hsapiens.v86
+## Evaluate whether we have protein annotation available
+hasProteinData(edb)
+listTables(edb)
+txs <- transcripts(edb, filter=GeneNameFilter(unique(pred[pred$N_genes==1,]$Genes)), columns = "tx_biotype")
+protein.coding.genes <- txs[txs$tx_biotype == "protein_coding",]$gene_name # 17704
+
+# split gene vectors for each row
+geneList <- strsplit(pred$Genes, ", ")
+pred[all(geneList %in% protein.coding.genes),]$ProteinCoding <- TRUE # 339
+
+write.csv(pred, "venSensPredictions_2025-07-09.csv", row.names=FALSE)
+# best are all non-weighted:
+# RNA: Lasry: LRRC25, HMOX1, LRP1, SLC15A3, LILRB2, LILRA6, CHST15, RBM47, SGSH, SLC7A7, TNFRSF1B, LILRB1, CD1D, FGR, IQSEC1, CLEC7A (16, r=0.811)
+# Protein: Sorted: NCF2, FCGRT, KCTD12, CD93 (4, r=0.795)
+# RNA: Lasry: LRRC25 (1, r=0.760)
+# Protein: Sorted: NCF2 (1, r=0.728)
+
+
+predAll <- optVen(BeatAML)
+predAll$ProteinCoding <- FALSE
+txs <- transcripts(edb, filter=GeneNameFilter(unique(predAll[predAll$N_genes==1,]$Genes)), columns = "tx_biotype")
+protein.coding.genes <- txs[txs$tx_biotype == "protein_coding",]$gene_name
+predAll[predAll$Genes %in% protein.coding.genes,]$ProteinCoding <- TRUE # 74910
+write.csv(predAll, "venSensPredictions_noSignature_2025-07-09.csv", row.names=FALSE)
+# best are:
+# Venetoclax 0.8133223 3.292705e-26 0.8022521 0 11 LRRC25, HMOX1, LRP1, SLC15A3, LILRB2, LILRA6, COTL1, CHST15, RBM47, FCGRT, SGSH 106 2.750886e-25 0 FALSE Lasry
+# 
+# ggplot(pred[pred$Pearson.q <= 0.05,], aes(x=N_genes, y=Pearson.est, color=Signature, shape=Weighted, alpha=N)) +
+#   geom_point() + geom_smooth(se=FALSE, linetype="dashed") + theme_classic() + scale_x_continuous(transform = "log10") +
+#   geom_hline(yintercept =0, linetype="dashed", color="gray")+labs(x="# of Genes", y="Pearson Correlation Estimate") + 
+#   ggrepel::geom_label_repel(data=rbind(pred[pred$Signature=="Sorted" & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE),
+#                                        pred[pred$Signature=="Lasry" & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE)),
+#                             aes(label=Genes))
+# ggsave("Ngenes_allSigs_PearsonEst_wLabelandNalpha.pdf", width=5, height=3)
+# 
+# ggplot(pred[pred$N_genes==1 & pred$Pearson.q<=0.05,], 
+#        aes(x=Pearson.est, y=-log10(Pearson.p), color=Signature, shape=Weighted, alpha=N)) +
+#   geom_point() + theme_classic() +
+#   geom_hline(yintercept =-log10(0.05), linetype="dashed", color="gray")+
+#   labs(y="-Log(P-value)", x="Pearson Correlation Estimate") + 
+#   ggrepel::geom_label_repel(data=rbind(pred[pred$N_genes==1 & pred$Pearson.q<=0.05,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+#                                        pred[pred$N_genes==1 & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE)),
+#                             aes(label=Genes))
+# ggsave("1gene_allSigs_PearsonEst_withNalpha.pdf", width=4, height=3)
+
+singlePred <- rbind(pred[pred$N_genes==1 & !pred$Weighted,colnames(predAll)], predAll)
+singlePred2 <- plyr::ddply(singlePred, .(Genes,DataType,Pearson.est,Pearson.p,N), summarize,
+                           Signature=paste0(na.omit(unique(Signature)), collapse=", "),
+                           ProteinCoding = any(ProteinCoding))
+singlePred2$Significant <- FALSE
+singlePred2[singlePred2$Pearson.p <= 0.05,]$Significant <- TRUE
+singlePred2[singlePred2$Signature=="",]$Signature <- "None"
+ggplot(singlePred2, # 32,254 rows
+       aes(x=Pearson.est, y=-log10(Pearson.p), color=Signature, shape=DataType, alpha=N)) +
+  geom_point() + theme_classic() + scale_color_manual(values=c("gray",scales::hue_pal()(length(unique(singlePred2$Signature))-1)),
+                                                      breaks=c("None", unique(singlePred2[order(singlePred2$Pearson.p),]$Signature)[unique(singlePred2[order(singlePred2$Pearson.p),]$Signature) != "None"]))+
+  geom_hline(yintercept =-log10(0.05), linetype="dashed", color="gray")+
+  labs(y="-Log(P-value)", x="Pearson Correlation Estimate",shape="Data Type") + 
+  scale_shape_manual(values=c(16,17),labels=c("Protein","RNA"))+#scale_alpha_continuous()+
+  ggrepel::geom_label_repel(data=dplyr::distinct(rbind(singlePred2[singlePred2$DataType=="global",] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+                                       singlePred2[singlePred2$DataType=="global" & singlePred2$Signature!="",] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+                                       singlePred2[singlePred2$DataType=="rna",] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+                                       singlePred2[singlePred2$DataType=="rna" & singlePred2$Signature!="",] %>% slice_min(Pearson.p, n=1, with_ties=FALSE))),
+                            aes(label=Genes))
+ggsave(paste0("1gene_allSigs_PearsonEst_withNalpha_v2_",Sys.Date(),".pdf"), width=4, height=3)
+
+ggplot(singlePred2[singlePred2$ProteinCoding,], # 23,781 (73.73%); note: 9153/9411 (97.26%) global rows are protein-coding? maybe because of difference in database?
+       aes(x=Pearson.est, y=-log10(Pearson.p), color=Signature, shape=DataType, alpha=N)) +
+  geom_point() + theme_classic() + #scale_color_manual(values=c("gray",scales::hue_pal()(length(unique(singlePred2$Signature))-1)))+
+  scale_color_manual(values=c("gray",scales::hue_pal()(length(unique(singlePred2$Signature))-1)),
+                     breaks=c("None", unique(singlePred2[order(singlePred2$Pearson.p),]$Signature)[unique(singlePred2[order(singlePred2$Pearson.p),]$Signature) != "None"]))+
+  geom_hline(yintercept =-log10(0.05), linetype="dashed", color="gray")+
+  labs(y="-Log(P-value)", x="Pearson Correlation Estimate",shape="Data Type") + 
+  scale_shape_manual(values=c(16,17),labels=c("Protein","RNA"))+#scale_alpha_continuous()+
+  ggrepel::geom_label_repel(data=dplyr::distinct(rbind(singlePred2[singlePred2$DataType=="global" & singlePred2$ProteinCoding,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+                                                       singlePred2[singlePred2$DataType=="global" & singlePred2$Signature!="None" & singlePred2$ProteinCoding,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+                                                       singlePred2[singlePred2$DataType=="rna" & singlePred2$ProteinCoding,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+                                                       singlePred2[singlePred2$DataType=="rna" & singlePred2$Signature!="None" & singlePred2$ProteinCoding,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE))),
+                            aes(label=Genes), show_guides=FALSE) + theme(legend.position="top") + guides(color=guide_legend(position="right"), alpha=guide_legend(position="bottom"))
+ggsave(paste0("1gene_proteinCoding_allSigs_PearsonEst_withNalpha_v3_",Sys.Date(),".pdf"), width=4, height=4)
+ggsave(paste0("1gene_proteinCoding_allSigs_PearsonEst_withNalpha_v3_wider_",Sys.Date(),".pdf"), width=5, height=4)
+
+# do the protein-coding genes which belong to a signature have higher Pearson est or lower p than those which don't belong to a signature?
+p.test <- t.test(singlePred2[singlePred2$ProteinCoding & singlePred2$Signature!="None",]$Pearson.p, # 3615 with mean 0.096
+                     singlePred2[singlePred2$ProteinCoding & singlePred2$Signature=="None",]$Pearson.p, # 20166 with mean 0.222
+                   "less")
+# yes: p=1.06246E-194
+
+est.test <- t.test(singlePred2[singlePred2$ProteinCoding & singlePred2$Signature!="None",]$Pearson.est, # 3615 with mean 0.0188
+                   singlePred2[singlePred2$ProteinCoding & singlePred2$Signature=="None",]$Pearson.est, # 20166 with mean -0.0261
+                   "greater")
+# yes: p=9.370512E-13
+
+# do proteins have more significant Pearson correlations than genes?
+# sharedGenes <- plyr::ddply(singlePred2, .(Genes), summarize,
+#                            protP = Pearson.p[DataType=="global"],
+#                            rnaP = Pearson.p[DataType=="rna"])
+sharedGenes <- reshape2::dcast(singlePred2, Genes~DataType, value.var="Pearson.p")
+sharedGenes <- na.omit(sharedGenes) # 8861 gene symbols in both rna and global data
+p.omics.test <- t.test(sharedGenes$global, sharedGenes$rna, "less", paired=TRUE)
+# no, p = 1
+
+p.omics.test <- t.test(singlePred2[singlePred2$ProteinCoding & singlePred2$DataType=="global",]$Pearson.p, 
+                       singlePred2[singlePred2$ProteinCoding & singlePred2$DataType=="rna",]$Pearson.p, 
+                       "less", paired=FALSE)
+# no, p = 1
+
+pred$label <- pred$Genes
+pred[pred$Genes=="LRRC25, HMOX1, LRP1, SLC15A3, LILRB2, LILRA6, CHST15, RBM47, SGSH, SLC7A7, TNFRSF1B, LILRB1, CD1D, FGR, IQSEC1, CLEC7A",]$label <- 
+  "LRRC25, HMOX1, LRP1, SLC15A3,\nLILRB2, LILRA6, CHST15, RBM47,\nSGSH, SLC7A7, TNFRSF1B, LILRB1,\nCD1D, FGR, IQSEC1, CLEC7A"
+ggplot(pred, aes(x=N_genes, y=Pearson.est, color=Signature, shape=Weighted, alpha=N)) +
+  geom_point() + geom_smooth(se=FALSE, linetype="dashed", show_guides=FALSE) + theme_classic() + scale_x_continuous(transform = "log10") +
+  scale_color_manual(values=fillVals, breaks=names(sig.paths)) + 
+  geom_hline(yintercept =0, linetype="dashed", color="gray")+labs(x="# of Genes", y="Pearson Correlation Estimate") + 
+  ggrepel::geom_label_repel(data=rbind(pred[pred$Signature=="Sorted" & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE),
+                                       pred[pred$Signature=="Lasry" & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE)),
+                            aes(label=label), box.padding = 1, show_guides=FALSE) + #theme(legend.position="top") + 
+  guides(#color=guide_legend(position="right"), 
+    alpha=guide_legend(position="bottom"))
+ggsave(paste0("Ngenes_allSigs_PearsonEst_wLabelandNalpha_",Sys.Date(),".pdf"), width=5, height=4) # was height 3
+
+# topPred <- rbind(pred[pred$N_genes==1 & pred$Pearson.q<=0.05,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+#                  pred[pred$N_genes==1 & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE),
+#                  pred[pred$DataType=="global" & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE),
+#                  pred[pred$DataType=="rna" & pred$Pearson.q<=0.05,] %>% slice_max(Pearson.est, n=1, with_ties=FALSE))
+topSinglePred <- dplyr::distinct(rbind(singlePred2[singlePred2$DataType=="global" & singlePred2$ProteinCoding,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+                                 singlePred2[singlePred2$DataType=="global" & singlePred2$Signature!="None" & singlePred2$ProteinCoding,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+                                 singlePred2[singlePred2$DataType=="rna" & singlePred2$ProteinCoding,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+                                 singlePred2[singlePred2$DataType=="rna" & singlePred2$Signature!="None" & singlePred2$ProteinCoding,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE)))
+write.csv(topSinglePred, "topVenSensPredictions_1gene_2025-07-09.csv", row.names=FALSE)
+
+topPred <- dplyr::distinct(rbind(pred[pred$DataType=="global" & pred$N_genes == 1,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+                                       pred[pred$DataType=="global" & pred$N_genes > 1,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+                                       pred[pred$DataType=="rna" & pred$N_genes==1,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE),
+                                       pred[pred$DataType=="rna" & pred$N_genes>1,] %>% slice_min(Pearson.p, n=1, with_ties=FALSE)))
+write.csv(topPred, "topVenSensPredictions_2025-07-09.csv", row.names=FALSE)
