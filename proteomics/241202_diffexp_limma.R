@@ -47,7 +47,7 @@ metadata.filter <- metadata %>% filter(grepl("AML.*D0", orig.ident)) %>%
   mutate(Donor = ifelse(grepl("BM", orig.ident), yes = "Healthy", no = "AML")) %>%
   mutate(Donor = factor(Donor, levels = c("Healthy", "AML")))
 
-metadata.filter <- metadata.filter[metadata.filter$PredictionRefined == "malignant",]
+#metadata.filter <- metadata.filter[metadata.filter$PredictionRefined == "malignant",]
 # rest is inspired by: https://hbctraining.github.io/scRNA-seq_online/lessons/pseudobulk_DESeq2_scrnaseq.html
 # prep data ----------------------------------------------------------------------------------
 counts <- aml@assays$RNA$counts
@@ -108,19 +108,19 @@ input.df <- input.df[,keepCols]
 input.df$Gene <- rownames(input.df)
 input.list <- list("van_Galen_AML_D0" = input.df)
 diffexp <- panSEA::mDEG(input.list, factor.df1)
-write.csv(diffexp$all.results$van_Galen_AML_D0, file.path(external.path,"formatted/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like.csv"), row.names = FALSE)
+write.csv(diffexp$all.results$van_Galen_AML_D0, file.path(external.path,"formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like.csv"), row.names = FALSE)
 
-diffexp.result <- read.csv(file.path(external.path,"formatted/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like.csv")) # 27899
-write.csv(na.omit(diffexp.result), file.path(external.path,"formatted/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv"), row.names = FALSE)
+diffexp.result <- read.csv(file.path(external.path,"formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like.csv")) # 27899
+write.csv(na.omit(diffexp.result), file.path(external.path,"formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv"), row.names = FALSE)
 diffexp.result <- na.omit(diffexp.result) # 17075
-#gb <- getBM(attributes=c("hgnc_symbol","gene_biotype"),filters = c("hgnc_symbol","biotype"), values=list(diffexp.result$Gene,"protein_coding"), mart=ensembl)
-# txs <- transcripts(edb, filter=GeneNameFilter(diffexp.result$Gene), columns = "tx_biotype")
-# protein.coding.genes <- txs[txs$tx_biotype == "protein_coding",]$gene_name
-# diffexp.result <- diffexp.result[diffexp.result$Gene %in% protein.coding.genes,] # 18972
+# gb <- getBM(attributes=c("hgnc_symbol","gene_biotype"),filters = c("hgnc_symbol","biotype"), values=list(diffexp.result$Gene,"protein_coding"), mart=ensembl)
+txs <- transcripts(edb, filter=GeneNameFilter(diffexp.result$Gene), columns = "tx_biotype")
+protein.coding.genes <- txs[txs$tx_biotype == "protein_coding",]$gene_name
+diffexp.result <- diffexp.result[diffexp.result$Gene %in% protein.coding.genes,] # 13828
 diffexp.result$adj.P.Val <- 1
 diffexp.result$adj.P.Val <- qvalue::qvalue(p = diffexp.result$P.Value, pi0 = 1)$qvalues
-# write.csv(diffexp.result, file.path(external.path,"formatted/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_protein-coding.csv"), row.names = FALSE)
-nrow(diffexp.result[diffexp.result$adj.P.Val <= 0.05,]) # 14
+write.csv(diffexp.result, file.path(external.path,"formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_protein-coding.csv"), row.names = FALSE)
+nrow(diffexp.result[diffexp.result$adj.P.Val <= 0.05,]) # 13
 
 # mono-like vs. other
 factor.df2 <- factor.df
@@ -140,15 +140,15 @@ input.df <- input.df[,keepCols]
 input.df$Gene <- rownames(input.df)
 input.list <- list("van_Galen_AML_D0" = input.df)
 diffexp_other <- panSEA::mDEG(input.list, factor.df2)
-write.csv(diffexp_other$all.results$van_Galen_AML_D0, file.path(external.path,"formatted/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Other.csv"), row.names = FALSE)
-diffexp.result <- read.csv(file.path(external.path,"formatted/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Other.csv")) # 27899
+write.csv(diffexp_other$all.results$van_Galen_AML_D0, file.path(external.path,"formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Other.csv"), row.names = FALSE)
+diffexp.result <- read.csv(file.path(external.path,"formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Other.csv")) # 27899
 #gb <- getBM(attributes=c("hgnc_symbol","gene_biotype"),filters = c("hgnc_symbol","biotype"), values=list(diffexp.result$Gene,"protein_coding"), mart=ensembl)
 txs <- transcripts(edb, filter=GeneNameFilter(diffexp.result$Gene), columns = "tx_biotype")
 protein.coding.genes <- txs[txs$tx_biotype == "protein_coding",]$gene_name
 diffexp.result <- diffexp.result[diffexp.result$Gene %in% protein.coding.genes,] # 18972
 diffexp.result$adj.P.Val <- 1
 diffexp.result$adj.P.Val <- qvalue::qvalue(p = diffexp.result$P.Value, pi0 = 1)$qvalues
-write.csv(diffexp.result, file.path(external.path,"formatted/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Other_protein-coding.csv"), row.names = FALSE)
+write.csv(diffexp.result, file.path(external.path,"formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Other_protein-coding.csv"), row.names = FALSE)
 nrow(diffexp.result[diffexp.result$adj.P.Val <= 0.05,]) # 4754
 
 #### 2. Lasry et al ####
@@ -281,3 +281,10 @@ protein.coding.genes <- txs[txs$tx_biotype == "protein_coding",]$gene_name
 diffexp.result <- diffexp.result[diffexp.result$Gene %in% protein.coding.genes,] # 15136
 write.csv(diffexp.result, file.path(external.path,"formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_MPP_protein-coding.csv"), row.names = FALSE)
 nrow(diffexp.result[diffexp.result$adj.P.Val <= 0.05,]) # 922
+
+#### make sure Triana genes are protein-coding ####
+diffexp.result <- read.csv(file.path(external.path,"formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv")) # 355, no NAs
+txs <- transcripts(edb, filter=GeneNameFilter(diffexp.result$Gene), columns = "tx_biotype")
+protein.coding.genes <- txs[txs$tx_biotype == "protein_coding",]$gene_name
+diffexp.result <- diffexp.result[diffexp.result$Gene %in% protein.coding.genes,] # 339
+write.csv(diffexp.result, file.path(external.path,"formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression_protein-coding.csv"), row.names = FALSE)
