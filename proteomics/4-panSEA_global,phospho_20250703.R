@@ -902,7 +902,7 @@ all.DEG.files <- list("TMT_Differential_expression_results.csv" =
                         all.degs.noMSC[all.degs.noMSC$adj.P.Val <= 0.05, ])
 save_to_synapse(all.DEG.files, synapse_id)
 
-# look at STRING network for DIA bead: CD14+ vs. CD34+
+#### look at STRING network for DIA bead: CD14+ vs. CD34+ ####
 library(PCSF)
 data("STRINGv12")
 de <- read.csv("analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv")
@@ -1000,6 +1000,8 @@ RCy3::createNetworkFromIgraph(topGraph, title="top5posCon_exp24")
 
 hall <- msigdbr::msigdbr(collection="H")
 hall.nfkb <- hall[grepl("NFKB",hall$gs_name),] # 200 genes
+pos3.edges <- STRINGv12[STRINGv12$from %in% pos.de3$Gene |
+                          STRINGv12$to %in% pos.de3$Gene,]
 pos.hall.edges <- pos3.edges[pos3.edges$from %in% c(pos.de3$Gene, hall.nfkb$gene_symbol) &
                                pos3.edges$to %in% c(pos.de3$Gene, hall.nfkb$gene_symbol),] # 198
 pos.hall.vert <- data.frame(unique(c(pos.hall.edges$from, pos.hall.edges$to)), type="Inferred", absLog2FC=NA) # 62
@@ -1015,9 +1017,10 @@ topGraph <- igraph::graph_from_data_frame(pos.hall.edges, directed=FALSE, vertic
 RCy3::createNetworkFromIgraph(topGraph, title="posHallNFKB3_exp24")
 
 hall.nfkb <- hall[grepl("NFKB",hall$gs_name),] # 200 genes
-pos.hall.edges <- pos3.edges[pos3.edges$from %in% c(pos.de3$Gene, hall.nfkb$gene_symbol) &
-                               pos3.edges$to %in% c(pos.de3$Gene, hall.nfkb$gene_symbol),] # 198
-pos.hall.vert <- data.frame(unique(c(pos.hall.edges$from, pos.hall.edges$to)), type="Inferred", absLog2FC=NA) # 62
+hdac.genes <- unique(c(STRINGv12$from[startsWith(STRINGv12$from, "HDAC")],STRINGv12$to[startsWith(STRINGv12$to, "HDAC")])) # 11: HDAC1-11
+pos.hall.edges <- STRINGv12[STRINGv12$from %in% c(pos.de3$Gene, hall.nfkb$gene_symbol, "MAPK14", hdac.genes) & # MAPK14: p38 MAPK
+                               STRINGv12$to %in% c(pos.de3$Gene, hall.nfkb$gene_symbol, "MAPK14", hdac.genes),] # 1996
+pos.hall.vert <- data.frame(unique(c(pos.hall.edges$from, pos.hall.edges$to)), type="Inferred", absLog2FC=NA) # 200
 colnames(pos.hall.vert)[1] <- "name"
 pos.hall.vert[pos.hall.vert$name %in% pos.de3$Gene,]$type <- "Input"
 used.input <- unique(pos.hall.vert[pos.hall.vert$type=="Input",]$name) # 22 / 30
@@ -1026,9 +1029,134 @@ for (i in used.input) {
 }
 pos.hall.vert$NFKB <- FALSE
 pos.hall.vert[pos.hall.vert$name %in% hall.nfkb$gene_symbol,]$NFKB <- TRUE
+pos.hall.vert$HDAC <- FALSE
+pos.hall.vert[pos.hall.vert$name %in% hdac.genes,]$HDAC <- TRUE
+pos.hall.vert$p38 <- FALSE
+pos.hall.vert[pos.hall.vert$name == "MAPK14",]$p38 <- TRUE
 topGraph <- igraph::graph_from_data_frame(pos.hall.edges, directed=FALSE, vertices = pos.hall.vert)
-RCy3::createNetworkFromIgraph(topGraph, title="posHallNFKB3_exp24")
+RCy3::createNetworkFromIgraph(topGraph, title="posHallNFKB3-HDAC-p38_exp24")
 
+pos.hall.edges <- STRINGv12[STRINGv12$from %in% c(pos.de3$Gene, "MAPK14", hdac.genes) & # MAPK14: p38 MAPK
+                              STRINGv12$to %in% c(pos.de3$Gene, "MAPK14", hdac.genes),] # 122
+pos.hall.vert <- data.frame(unique(c(pos.hall.edges$from, pos.hall.edges$to)), type="Inferred", absLog2FC=NA) # 31
+colnames(pos.hall.vert)[1] <- "name"
+pos.hall.vert[pos.hall.vert$name %in% pos.de3$Gene,]$type <- "Input"
+used.input <- unique(pos.hall.vert[pos.hall.vert$type=="Input",]$name) # 19 / 30
+for (i in used.input) {
+  pos.hall.vert[pos.hall.vert$name == i,]$absLog2FC <- abs(pos.de3[pos.de3$Gene==i,]$Log2FC)
+}
+pos.hall.vert$NFKB <- FALSE
+pos.hall.vert[pos.hall.vert$name %in% hall.nfkb$gene_symbol,]$NFKB <- TRUE # none
+pos.hall.vert$HDAC <- FALSE
+pos.hall.vert[pos.hall.vert$name %in% hdac.genes,]$HDAC <- TRUE
+pos.hall.vert$p38 <- FALSE
+pos.hall.vert[pos.hall.vert$name == "MAPK14",]$p38 <- TRUE
+topGraph <- igraph::graph_from_data_frame(pos.hall.edges, directed=FALSE, vertices = pos.hall.vert)
+RCy3::createNetworkFromIgraph(topGraph, title="posHDAC-p38_exp24")
+
+pos.hall.edges <- STRINGv12[STRINGv12$from %in% c(hall.nfkb$gene_symbol, "MAPK14", hdac.genes) & # MAPK14: p38 MAPK
+                              STRINGv12$to %in% c(hall.nfkb$gene_symbol, "MAPK14", hdac.genes),] # 1794
+pos.hall.vert <- data.frame(unique(c(pos.hall.edges$from, pos.hall.edges$to)), type="Inferred", absLog2FC=NA) # 177
+colnames(pos.hall.vert)[1] <- "name"
+pos.hall.vert[pos.hall.vert$name %in% pos.de$Gene,]$type <- "Input"
+used.input <- unique(pos.hall.vert[pos.hall.vert$type=="Input",]$name) # 24 / 1136
+any(used.input %in% pos.de3$Gene) # FALSE
+for (i in used.input) {
+  pos.hall.vert[pos.hall.vert$name == i,]$absLog2FC <- abs(pos.de[pos.de$Gene==i,]$Log2FC)
+}
+pos.hall.vert$NFKB <- FALSE
+pos.hall.vert[pos.hall.vert$name %in% hall.nfkb$gene_symbol,]$NFKB <- TRUE # none
+pos.hall.vert$HDAC <- FALSE
+pos.hall.vert[pos.hall.vert$name %in% hdac.genes,]$HDAC <- TRUE
+pos.hall.vert$p38 <- FALSE
+pos.hall.vert[pos.hall.vert$name == "MAPK14",]$p38 <- TRUE
+pos.hall.vert$Pathway <- ""
+pos.hall.vert[pos.hall.vert$name %in% hall.nfkb$gene_symbol,]$Pathway <- "NFKB"
+pos.hall.vert[pos.hall.vert$name %in% hdac.genes,]$Pathway <- "HDAC"
+pos.hall.vert[pos.hall.vert$name == "MAPK14",]$Pathway <- "p38 MAPK"
+topGraph <- igraph::graph_from_data_frame(pos.hall.edges, directed=FALSE, vertices = pos.hall.vert)
+RCy3::createNetworkFromIgraph(topGraph, title="posHallNFKB-HDAC-p38_exp24")
+
+pos.hall.edges <- STRINGv12[STRINGv12$from %in% c("MAPK14", hdac.genes) & # MAPK14: p38 MAPK
+                              STRINGv12$to %in% c("MAPK14", hdac.genes),] # 66
+pos.hall.vert <- data.frame(unique(c(pos.hall.edges$from, pos.hall.edges$to)), type="Inferred", absLog2FC=NA) # 12
+colnames(pos.hall.vert)[1] <- "name"
+pos.hall.vert[pos.hall.vert$name %in% pos.de$Gene,]$type <- "Input"
+used.input <- unique(pos.hall.vert[pos.hall.vert$type=="Input",]$name) # 24 / 1136
+any(used.input %in% pos.de3$Gene) # FALSE
+for (i in used.input) {
+  pos.hall.vert[pos.hall.vert$name == i,]$absLog2FC <- abs(pos.de[pos.de$Gene==i,]$Log2FC)
+}
+pos.hall.vert$NFKB <- FALSE
+pos.hall.vert[pos.hall.vert$name %in% hall.nfkb$gene_symbol,]$NFKB <- TRUE # none
+pos.hall.vert$HDAC <- FALSE
+pos.hall.vert[pos.hall.vert$name %in% hdac.genes,]$HDAC <- TRUE
+pos.hall.vert$p38 <- FALSE
+pos.hall.vert[pos.hall.vert$name == "MAPK14",]$p38 <- TRUE
+pos.hall.vert$Pathway <- ""
+pos.hall.vert[pos.hall.vert$name %in% hall.nfkb$gene_symbol,]$Pathway <- "NFKB"
+pos.hall.vert[pos.hall.vert$name %in% hdac.genes,]$Pathway <- "HDAC"
+pos.hall.vert[pos.hall.vert$name == "MAPK14",]$Pathway <- "p38 MAPK"
+topGraph <- igraph::graph_from_data_frame(pos.hall.edges, directed=FALSE, vertices = pos.hall.vert)
+RCy3::createNetworkFromIgraph(topGraph, title="posHDAC-p38_stricter_exp24")
+
+# only HDAC4 was upregulated (in addition to MAPK14) - were the other hdacs quantified?
+quant.hdac <- hdac.genes[hdac.genes %in% de$Gene] # HDAC2 and HDAC4 were detected
+
+# maybe just look at things upregulated
+pos.nfkb.p38.hdac <- pos.de[pos.de$Gene %in% c(hall.nfkb$gene_symbol, "MAPK14", hdac.genes),] # 28 / 1136
+pos.hall.edges <- STRINGv12[STRINGv12$from %in% pos.nfkb.p38.hdac$Gene & # MAPK14: p38 MAPK
+                              STRINGv12$to %in% pos.nfkb.p38.hdac$Gene,] # 54
+pos.hall.vert <- data.frame(unique(c(pos.hall.edges$from, pos.hall.edges$to)), type="Input", absLog2FC=NA) # 15
+colnames(pos.hall.vert)[1] <- "name"
+used.input <- unique(pos.hall.vert[pos.hall.vert$type=="Input",]$name) # 15 / 28
+any(used.input %in% pos.de3$Gene) # FALSE
+for (i in used.input) {
+  pos.hall.vert[pos.hall.vert$name == i,]$absLog2FC <- abs(pos.de[pos.de$Gene==i,]$Log2FC)
+}
+pos.hall.vert$NFKB <- FALSE
+pos.hall.vert[pos.hall.vert$name %in% hall.nfkb$gene_symbol,]$NFKB <- TRUE # none
+pos.hall.vert$HDAC <- FALSE
+pos.hall.vert[pos.hall.vert$name %in% hdac.genes,]$HDAC <- TRUE
+pos.hall.vert$p38 <- FALSE
+pos.hall.vert[pos.hall.vert$name == "MAPK14",]$p38 <- TRUE
+pos.hall.vert$Pathway <- ""
+pos.hall.vert[pos.hall.vert$name %in% hall.nfkb$gene_symbol,]$Pathway <- "NFKB"
+pos.hall.vert[pos.hall.vert$name %in% hdac.genes,]$Pathway <- "HDAC"
+pos.hall.vert[pos.hall.vert$name == "MAPK14",]$Pathway <- "p38 MAPK"
+topGraph <- igraph::graph_from_data_frame(pos.hall.edges, directed=FALSE, vertices = pos.hall.vert)
+RCy3::createNetworkFromIgraph(topGraph, title="posDEHallNFKB-HDAC-p38_exp24")
+
+pos.p38.hdac <- pos.de[pos.de$Gene %in% c("MAPK14", hdac.genes),] # 2 / 1136
+pos.hall.edges <- STRINGv12[STRINGv12$from %in% pos.p38.hdac$Gene | # MAPK14: p38 MAPK
+                              STRINGv12$to %in% pos.p38.hdac$Gene,] # 0 if AND logic, 1388 if OR logic
+# pos.hall.vert <- data.frame(unique(c(pos.hall.edges$from, pos.hall.edges$to)), type="Input", absLog2FC=NA) # 15
+# colnames(pos.hall.vert)[1] <- "name"
+# used.input <- unique(pos.hall.vert[pos.hall.vert$type=="Input",]$name) # 15 / 28
+# any(used.input %in% pos.de3$Gene) # FALSE
+# for (i in used.input) {
+#   pos.hall.vert[pos.hall.vert$name == i,]$absLog2FC <- abs(pos.de[pos.de$Gene==i,]$Log2FC)
+# }
+# pos.hall.vert$NFKB <- FALSE
+# pos.hall.vert[pos.hall.vert$name %in% hall.nfkb$gene_symbol,]$NFKB <- TRUE # none
+# pos.hall.vert$HDAC <- FALSE
+# pos.hall.vert[pos.hall.vert$name %in% hdac.genes,]$HDAC <- TRUE
+# pos.hall.vert$p38 <- FALSE
+# pos.hall.vert[pos.hall.vert$name == "MAPK14",]$p38 <- TRUE
+# pos.hall.vert$Pathway <- ""
+# pos.hall.vert[pos.hall.vert$name %in% hall.nfkb$gene_symbol,]$Pathway <- "NFKB"
+# pos.hall.vert[pos.hall.vert$name %in% hdac.genes,]$Pathway <- "HDAC"
+# pos.hall.vert[pos.hall.vert$name == "MAPK14",]$Pathway <- "p38 MAPK"
+# topGraph <- igraph::graph_from_data_frame(pos.hall.edges, directed=FALSE, vertices = pos.hall.vert)
+# RCy3::createNetworkFromIgraph(topGraph, title="posDEHDAC-p38_exp24")
+
+# are NFKB proteins more likely to be diffexp than not?
+diffexp <- read.csv("analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv")
+quant.nfkb <- diffexp[diffexp$Gene %in% hall.nfkb$gene_symbol,] # 57
+pos.nfkb <- pos.de[pos.de$Gene %in% quant.nfkb$Gene,] # 26
+neg.nfkb <- neg.de[neg.de$Gene %in% quant.nfkb$Gene,] # 2
+
+# is MAPK14 or HDAC4 more likely to interact with NFKB signaling proteins than others?
 
 # before updating panSEA package
 # [1] "Running CD14_Pos_vs_Neg with no filter"
