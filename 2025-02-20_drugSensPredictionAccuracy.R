@@ -629,9 +629,12 @@ evalResults <- list("drug" = read.csv("predictions.csv"),
                     "pt.corr" = read.csv("patientAccuracy.csv"))
 
 hist(evalResults$pt.corr$Pearson.est)
-med.pt.r <- median(evalResults$pt.corr$Pearson.est) # 0.785882478840521
-sd.pt.r <- sd(evalResults$pt.corr$Pearson.est) # 0.171287467988083
-frac.sd <- sd.pt.r/med.pt.r # 0.21795557554712
+med.pt.r <- median(evalResults$pt.corr$Pearson.est) # 0.78688327829765
+med.pt.r.s <- median(evalResults$pt.corr[evalResults$pt.corr$Signature=="Sorted: 26 proteins",]$Pearson.est) # 0.788259468364285
+med.pt.r.l <- median(evalResults$pt.corr[evalResults$pt.corr$Signature=="Lasry: 46 genes",]$Pearson.est) # 0.784189779103954
+
+sd.pt.r <- sd(evalResults$pt.corr$Pearson.est) # 0.168570024195598
+frac.sd <- sd.pt.r/med.pt.r # 0.214224941417339
 pt.r <- reshape2::dcast(evalResults$pt.corr, Barcode.ID ~ Signature, value.var="Pearson.est")
 
 multi.cor <- cor.test(pt.r$`Lasry: 46 genes`, pt.r$`Sorted: 26 proteins`)
