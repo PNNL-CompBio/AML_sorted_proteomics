@@ -1267,18 +1267,124 @@ for (i in sigs.tested) {
 # }
 # # none passed p <= 0.05
 # # 
-# # base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/data/clinical_metadata/"
-# # setwd(base.path)
-# # patient.key <- readxl::read_xlsx("lab_dbgap_key.xlsx")
-# # patient.meta <- readxl::read_xlsx("Table_S1.xlsx",sheet=1)
-# # patient.meta <- as.data.frame(patient.meta)
-# # #rownames(patient.meta) <- patient.meta[,1]
-# # 
-# # # does metadata correlate Ven response?
-# # key.cols <- colnames(patient.meta)[colnames(patient.meta) %in% colnames(patient.key)]
-# # num.cols <- colnames(dplyr::select_if(patient.meta, is.numeric))
-# # num.meta <- dplyr::distinct(patient.meta[,c(key.cols, num.cols)])
-# # num.meta <- merge(patient.key, num.meta, by = key.cols)
-# # num.meta <- num.meta[,c("labId", num.cols[2:length(num.cols)])] # leave out dbgap_subject_id from numeric columns
+base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/data/clinical_metadata/"
+setwd(base.path)
+patient.key <- readxl::read_xlsx("lab_dbgap_key.xlsx")
+patient.meta <- readxl::read_xlsx("Table_S1.xlsx",sheet=1)
+patient.meta <- as.data.frame(patient.meta)
+#rownames(patient.meta) <- patient.meta[,1]
+
+# does metadata correlate Ven response?
+key.cols <- colnames(patient.meta)[colnames(patient.meta) %in% colnames(patient.key)]
+num.cols <- colnames(dplyr::select_if(patient.meta, is.numeric))
+num.meta <- dplyr::distinct(patient.meta[,c(key.cols, num.cols)])
+num.meta <- merge(patient.key, num.meta, by = key.cols)
+num.meta <- num.meta[,c("labId", num.cols[2:length(num.cols)])] # leave out dbgap_subject_id from numeric columns
 # # 
 # # # correlation between NCF2 protein or LRRC25 RNA and Ven sensitivity
+
+fab.meta <- merge(patient.key, patient.meta, by=key.cols)
+fab.meta <- fab.meta[,c("labId","fabBlastMorphology")]
+fab.meta <- na.omit(fab.meta[fab.meta$labId %in% sorted.patients,]) # 9
+# 3 are M1, 3 are M2, 1 is M4, 2 are M5
+
+#### check for genes of interest ####
+# from papers Anupriya sent
+# BCL2 and MDM inhibitor resistance in monocytic leukemia cells: https://ashpublications.org/blood/article/142/Supplement%201/2937/502904/Cebp-IL1-TNF-Positive-Feedback-Loop-Drives-Drug
+# don't have access to full article
+bcl2.mdm.res.up <- c("CEBPB", "MCL1","BCL2A1") # also need to add NFKB/IL1/TNF pathway
+bcl2.mdm.res.dn <- c("CASP3","CASP6","BCL2","CDKN1A","PMAIP1","BBC3","BMF","TP53")
+
+# https://pmc.ncbi.nlm.nih.gov/articles/PMC9131911/#sec2
+ven.res <- c("CD11B","CD16","CD56","CD64","HLADR") # these are protein names - check for gene symbols
+ven.sens <- c("CD117")
+dora.sens <- c("HLADR")
+
+# https://pmc.ncbi.nlm.nih.gov/articles/PMC10618724/#_ad93_
+av.res <- c("CD14", "RAS")
+av.sens <- c("CD117","IDH1","NPM1")
+#ven.rux.sig <- readxl::read_excel("/Users/gara093/Downloads/bcd-23-0014_table_s7_suppst7.xlsx")
+
+# https://aacrjournals.org/cancerdiscovery/article/13/6/1408/726964/Combinatorial-BCL2-Family-Expression-in-Acute
+m5.dn <- c("CD117")
+m5.up <- c("CD11b", "CD68","CD64")
+
+# LSC signature different between sens/res AML
+# https://aacrjournals.org/cancerdiscovery/article/13/6/1408/726964/Combinatorial-BCL2-Family-Expression-in-Acute
+# https://pmc.ncbi.nlm.nih.gov/articles/PMC7124979/#_ad93_
+lsc <- readxl::read_excel("/Users/gara093/Downloads/NIHMS1551453-supplement-2.xlsx", sheet="Table S4")
+colnames(lsc) <- lsc[2,]
+lsc <- lsc[-c(1,2),]
+lsc <- as.list(lsc)
+
+# get our sorted signature
+sorted <- read.csv("~/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv")
+sorted <- sorted[sorted$adj.P.Val <= 0.05,]
+
+anupriya.sigs <- append(lsc, list("BCL2 Res Down" = bcl2.mdm.res.dn, 
+                                  "BCL2 Res Up" = bcl2.mdm.res.up, 
+                                  "Ven Res" = ven.res, "Ven Sens" = ven.sens, 
+                                  "Dora Sens" = dora.sens, "AzaVen Res" = av.res, 
+                                  "AzaVen Sens" = av.sens, "M5 Down" = m5.dn,
+                                  "M5 Up" = m5.up))
+dir.create("Anupriya_sigs")
+setwd("Anupriya_sigs")
+for (i in names(anupriya.sigs)) {
+  if (any(sorted$Gene %in% anupriya.sigs[[i]])) {
+    ggvenn::ggvenn(list("Sorted" = sorted$Gene, i = anupriya.sigs[[i]]), 
+                   show_elements=TRUE, show_percentage=FALSE)
+    ggsave(paste0("venn_sorted_vs_",i,"_wElements.pdf"), width=5, height=5) 
+    ggvenn::ggvenn(list("Sorted" = sorted$Gene, i = anupriya.sigs[[i]]), 
+                   show_percentage=FALSE)
+    ggsave(paste0("venn_sorted_vs_",i,".pdf"), width=5, height=5)
+  }
+  
+  if (any(sorted[sorted$Log2FC>0,]$Gene %in% anupriya.sigs[[i]])) {
+  ggvenn::ggvenn(list("Sorted" = sorted[sorted$Log2FC>0,]$Gene, i = anupriya.sigs[[i]]), 
+                 show_elements=TRUE, show_percentage=FALSE)
+  ggsave(paste0("venn_sorted_up_vs_",i,"_wElements.pdf"), width=5, height=5)
+  ggvenn::ggvenn(list("Sorted" = sorted[sorted$Log2FC>0,]$Gene, i = anupriya.sigs[[i]]), 
+                 show_percentage=FALSE)
+  ggsave(paste0("venn_sorted_up_vs_",i,".pdf"), width=5, height=5)
+  }
+  
+  if (any(sorted[sorted$Log2FC<0,] %in% anupriya.sigs[[i]])) {
+    ggvenn::ggvenn(list("Sorted" = sorted[sorted$Log2FC<0,]$Gene, i = anupriya.sigs[[i]]), 
+                   show_elements=TRUE, show_percentage=FALSE)
+    ggsave(paste0("venn_sorted_dn_vs_",i,"_wElements.pdf"), width=5, height=5) 
+    ggvenn::ggvenn(list("Sorted" = sorted[sorted$Log2FC<0,]$Gene, i = anupriya.sigs[[i]]), 
+                  show_percentage=FALSE)
+    ggsave(paste0("venn_sorted_dn_vs_",i,".pdf"), width=5, height=5) 
+  }
+}
+
+anu.sigs <- data.table::rbindlist(anupriya.sigs, use.names=TRUE, idcol="Signature")
+anu.sigs <- as.data.frame(anupriya.sigs)
+anu.sigs <- rbind(anupriya.sigs)
+
+anu.genes <- unique(c(unlist(anupriya.sigs), sorted$Gene))
+anu.sigs <- data.frame(anu.genes, N_sigs = 0, Sigs = "")
+anu.sigs[anu.sigs$anu.genes %in% sorted[sorted$Log2FC > 0,]$Gene,]$N_sigs <- 1
+anu.sigs[anu.sigs$anu.genes %in% sorted[sorted$Log2FC > 0,]$Gene,]$Sigs <- "Sorted CD14+"
+
+anu.sigs[anu.sigs$anu.genes %in% sorted[sorted$Log2FC < 0,]$Gene,]$N_sigs <- 1
+anu.sigs[anu.sigs$anu.genes %in% sorted[sorted$Log2FC < 0,]$Gene,]$Sigs <- "Sorted CD34+"
+
+for (i in names(anupriya.sigs)) {
+  anu.sigs[anu.sigs$anu.genes %in% anupriya.sigs[[i]],]$N_sigs <- anu.sigs[anu.sigs$anu.genes %in% anupriya.sigs[[i]],]$N_sigs + 1
+  anu.sigs[anu.sigs$anu.genes %in% anupriya.sigs[[i]],]$Sigs <- paste0(anu.sigs[anu.sigs$anu.genes %in% anupriya.sigs[[i]],]$Sigs, ", ", i)
+}
+
+anu.sigs[startsWith(anu.sigs$Sigs, ", "),]$Sigs <- sub(", ", "", anu.sigs[startsWith(anu.sigs$Sigs, ", "),]$Sigs)
+write.csv(anu.sigs, "Overlap_across_signatures_from_Anupriya.csv", row.names=FALSE)
+
+cd14.overlap.sigs <- unique(unlist(strsplit(unlist(anu.sigs[grepl("Sorted CD14+",anu.sigs$Sigs),]$Sigs),", "))) # 8 including CD14+
+cd34.overlap.sigs <- unique(unlist(strsplit(unlist(anu.sigs[grepl("Sorted CD34+",anu.sigs$Sigs),]$Sigs),", "))) # 8 including CD34+
+anupriya.sigs2 <- append(anupriya.sigs, list("Sorted CD14+" = sorted[sorted$Log2FC > 0,]$Gene,
+                                             "Sorted CD34+" = sorted[sorted$Log2FC < 0,]$Gene))
+saveRDS(anupriya.sigs2, "Signatures_from_Anupriya.rds")
+# convert to matrix
+myPlot = UpSetR::fromList(anupriya.sigs2)
+pdf("sigsFromAnupriya_upsetPlot.pdf", onefile=FALSE)
+UpSetR::upset(myPlot, order.by="freq")
+dev.off()
