@@ -1267,6 +1267,10 @@ for (i in sigs.tested) {
 # }
 # # none passed p <= 0.05
 # # 
+dia.wo.out <- readRDS("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/DIA_2batches_noOutliers.rds")
+# sorted.patients <- c("18-00105", "21-00839", "22-00571", "22-00117", "16-01184",
+#                      "19-00074", "18-00103", "21-00432", "17-01060", "22-00251")
+sorted.patients <- unique(dia.wo.out$meta$patient)
 base.path <- "~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/data/clinical_metadata/"
 setwd(base.path)
 patient.key <- readxl::read_xlsx("lab_dbgap_key.xlsx")
@@ -1288,6 +1292,11 @@ fab.meta <- fab.meta[,c("labId","fabBlastMorphology")]
 fab.meta <- na.omit(fab.meta[fab.meta$labId %in% sorted.patients,]) # 9
 # 3 are M1, 3 are M2, 1 is M4, 2 are M5
 
+npm1.meta <- merge(patient.key, patient.meta, by=key.cols)
+npm1.meta <- npm1.meta[npm1.meta$labId %in% sorted.patients,] # 9 patients
+write.csv(npm1.meta, "Table_S1_sortedDIApatients.csv", row.names=FALSE)
+
+
 #### check for genes of interest ####
 # from papers Anupriya sent
 # BCL2 and MDM inhibitor resistance in monocytic leukemia cells: https://ashpublications.org/blood/article/142/Supplement%201/2937/502904/Cebp-IL1-TNF-Positive-Feedback-Loop-Drives-Drug
@@ -1297,17 +1306,23 @@ bcl2.mdm.res.dn <- c("CASP3","CASP6","BCL2","CDKN1A","PMAIP1","BBC3","BMF","TP53
 
 # https://pmc.ncbi.nlm.nih.gov/articles/PMC9131911/#sec2
 ven.res <- c("CD11B","CD16","CD56","CD64","HLADR") # these are protein names - check for gene symbols
-ven.sens <- c("CD117")
-dora.sens <- c("HLADR")
+ven.res <- c("ITGAM","FCGR3A", "FCGR3B","NCAM1","FCGR1A","HLA-DRB1") # gene symbols
+ven.sens <- c("CD117") # protein name
+ven.sens <- c("KIT") # gene symbol
+dora.sens <- c("HLADR") # protein name
+dora.sens <- c("HLA-DRB1") # gene symbol
 
 # https://pmc.ncbi.nlm.nih.gov/articles/PMC10618724/#_ad93_
-av.res <- c("CD14", "RAS")
-av.sens <- c("CD117","IDH1","NPM1")
+av.res <- c("CD14", "RAS") # which RAS?
+av.sens <- c("CD117","IDH1","NPM1") # protein name
+ven.sens <- c("KIT", "IDH1","NPM1") # gene symbol
 #ven.rux.sig <- readxl::read_excel("/Users/gara093/Downloads/bcd-23-0014_table_s7_suppst7.xlsx")
 
 # https://aacrjournals.org/cancerdiscovery/article/13/6/1408/726964/Combinatorial-BCL2-Family-Expression-in-Acute
-m5.dn <- c("CD117")
-m5.up <- c("CD11b", "CD68","CD64")
+m5.dn <- c("CD117") # protein name
+ven.sens <- c("KIT") # gene symbol
+m5.up <- c("CD11b", "CD68","CD64") # protein name
+m5.up <- c("ITGAM", "CD68", "FCGR1A") # gene symbol
 
 # LSC signature different between sens/res AML
 # https://aacrjournals.org/cancerdiscovery/article/13/6/1408/726964/Combinatorial-BCL2-Family-Expression-in-Acute
@@ -1358,8 +1373,8 @@ for (i in names(anupriya.sigs)) {
   }
 }
 
-anu.sigs <- data.table::rbindlist(anupriya.sigs, use.names=TRUE, idcol="Signature")
-anu.sigs <- as.data.frame(anupriya.sigs)
+#anu.sigs <- data.table::rbindlist(anupriya.sigs, use.names=TRUE, idcol="Signature")
+#anu.sigs <- as.data.frame(anupriya.sigs)
 anu.sigs <- rbind(anupriya.sigs)
 
 anu.genes <- unique(c(unlist(anupriya.sigs), sorted$Gene))
@@ -1378,8 +1393,8 @@ for (i in names(anupriya.sigs)) {
 anu.sigs[startsWith(anu.sigs$Sigs, ", "),]$Sigs <- sub(", ", "", anu.sigs[startsWith(anu.sigs$Sigs, ", "),]$Sigs)
 write.csv(anu.sigs, "Overlap_across_signatures_from_Anupriya.csv", row.names=FALSE)
 
-cd14.overlap.sigs <- unique(unlist(strsplit(unlist(anu.sigs[grepl("Sorted CD14+",anu.sigs$Sigs),]$Sigs),", "))) # 8 including CD14+
-cd34.overlap.sigs <- unique(unlist(strsplit(unlist(anu.sigs[grepl("Sorted CD34+",anu.sigs$Sigs),]$Sigs),", "))) # 8 including CD34+
+cd14.overlap.sigs <- unique(unlist(strsplit(unlist(anu.sigs[grepl("Sorted CD14+",anu.sigs$Sigs),]$Sigs),", "))) # 10 including CD14+
+cd34.overlap.sigs <- unique(unlist(strsplit(unlist(anu.sigs[grepl("Sorted CD34+",anu.sigs$Sigs),]$Sigs),", "))) # 9 including CD34+
 anupriya.sigs2 <- append(anupriya.sigs, list("Sorted CD14+" = sorted[sorted$Log2FC > 0,]$Gene,
                                              "Sorted CD34+" = sorted[sorted$Log2FC < 0,]$Gene))
 saveRDS(anupriya.sigs2, "Signatures_from_Anupriya.rds")
@@ -1388,3 +1403,7 @@ myPlot = UpSetR::fromList(anupriya.sigs2)
 pdf("sigsFromAnupriya_upsetPlot.pdf", onefile=FALSE)
 UpSetR::upset(myPlot, order.by="freq")
 dev.off()
+
+write.csv(anu.sigs[anu.sigs$N_sigs > 1 & grepl("Sorted",anu.sigs$Sigs) &
+                     (grepl("M5",anu.sigs$Sigs) | grepl("Res",anu.sigs$Sigs) | grepl("Sens",anu.sigs$Sigs)),], 
+          "Overlap_across_signatures_from_Anupriya_sortedM5ResSens.csv", row.names=FALSE)
