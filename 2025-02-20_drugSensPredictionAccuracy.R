@@ -1296,6 +1296,10 @@ npm1.meta <- merge(patient.key, patient.meta, by=key.cols)
 npm1.meta <- npm1.meta[npm1.meta$labId %in% sorted.patients,] # 9 patients
 write.csv(npm1.meta, "Table_S1_sortedDIApatients.csv", row.names=FALSE)
 
+missing.pts <- sort(sorted.patients[!(sorted.patients %in% npm1.meta$labId)])
+missing.pts
+found.pts <- sort(sorted.patients[(sorted.patients %in% npm1.meta$labId)])
+found.pts
 
 #### check for genes of interest ####
 # from papers Anupriya sent
