@@ -140,7 +140,7 @@ tmt.wo.out <- list("meta" = tmt.wo.out$meta,
                    "global" = tmt.wo.out.cov,
                    "phospho" = tmt.wo.out.covP)
 saveRDS(tmt.wo.out,"TMT_noOutliers_2025-07-07.rds")
-tmt.wo.out <- readRDS("analysis/TMT_noOutliers_2025-07-07.rds")
+tmt.wo.out <- readRDS("data/TMT_noOutliers_2025-07-07.rds")
 
 ### DIA
 meta.df <- readxl::read_excel("Exp24metadataTable_DIA.xlsx") 
@@ -901,6 +901,169 @@ all.DEG.files <- list("TMT_Differential_expression_results.csv" =
                       "TMT_Differential_expression_results_max_5_percent_FDR_noMSC.csv" = 
                         all.degs.noMSC[all.degs.noMSC$adj.P.Val <= 0.05, ])
 save_to_synapse(all.DEG.files, synapse_id)
+
+#### panSEA with cell type as a factor ####
+setwd(base.path)
+if (file.exists("gmt_BeatAML_drug_MOA.rds")) {
+  gmt.drug <- readRDS("gmt_BeatAML_drug_MOA.rds")
+} else {
+  gmt.drug <- DMEA::as_gmt(moa.BeatAML, sep = ", ")
+  saveRDS(gmt.drug, "gmt_BeatAML_drug_MOA.rds")
+}
+
+synapse_id <- "syn68888753"
+all.degs <- data.frame()
+all.degs.noMSC <- data.frame()
+contrasts <- c("CD14", "CD34", #"Aza", "Ven", "Aza.Ven", # Aza + Ven has NA- need to debug why comparison isn't sensitive vs. resistant
+               "Ven", "Sort Type", "MSC")
+contrasts.noMSC <- c("CD14", "Sort Type", #"Aza", "Ven", "Aza.Ven"
+                     "Ven")
+contrasts <- c("CD14", "CD34", "Aza", "Ven", "Aza.Ven", 
+               "Sort Type", "MSC")
+contrasts.noMSC <- c("CD14", "Sort Type", "Aza", "Ven", "Aza.Ven")
+#contrasts.noMSC <- c("CD14", "Sort Type")
+#BeatAML.data <- load_not_norm_BeatAML_for_DMEA2()
+#sorted.patients <- unique(mCombo$patient)
+
+gmt1 <- readRDS("gmt1_more.rds")
+setwd("analysis")
+dir.create("combined24-27")
+setwd("combined24-27")
+dir.create("using_cellType-sortType-patient_factors")
+setwd("using_cellType-sortType-patient_factors")
+# gmt1 <- get_gmt1_v2()
+# gmt1[[11]] <- NULL
+# gmt[[13]] <- NULL
+# names(gmt1) <- c("TFT_GTRD", "MIR_MIRDB", "GO_BP", "GO_CC", "GO_MF", 
+#                  "Oncogenic_signatures", "BioCarta", "KEGG", "PID", "Reactome", 
+#                  "Hallmark", "Positional")
+# temp.gmt <- msigdbr::msigdbr(species = "Homo sapiens", category="C2", subcategory="CP:WIKIPATHWAYS")
+# temp.gmt <- DMEA::as_gmt(as.data.frame(temp.gmt), element.names = "gene_symbol", set.names = "gs_name", descriptions = "gs_description")
+# gmt1[["WikiPathways"]] <- temp.gmt
+# gmt1 <- gmt1[c(1:12,14)]
+# saveRDS(gmt1, "gmt1_more.rds")
+
+# gmt.names <- c("Hallmark","PID", "Oncogenic_signatures", "KEGG")
+# gmt1 <- gmt1[gmt.names]
+# saveRDS(gmt1, "gmt1_more.rds")
+#devtools::install_github("cstawitz/roomba")
+# library(roomba)
+# packageurl <- "http://cran.r-project.org/src/contrib/Archive/ggplot2/ggplot2_3.4.4.tar.gz"
+# install.packages(packageurl, repos=NULL, type="source")
+# library(ggplot2)
+base.path <- getwd()
+dia.wo.out$global <- as.data.frame(dia.wo.out$global)
+dia.wo.out$global$Gene <- rownames(dia.wo.out$global)
+unmatched <- rownames(dia.wo.out$meta)[!(rownames(dia.wo.out$meta) %in% colnames(dia.wo.out$global))] # none
+
+method.data <- list("DIA_2batches_noOutliers"=dia.wo.out, "TMT_noOutliers"=tmt.wo.out)
+synapser::synLogin()
+for (k in 1:length(method.data)) {
+  setwd(base.path)
+  method.path <- file.path(base.path, names(method.data)[k])
+  dir.create(names(method.data)[k])
+  setwd(names(method.data)[k])
+  methodFolder <- 
+    synapser::synStore(synapser::Folder(names(method.data)[k],
+                                        parent = synapse_id))
+  
+  meta.df <- method.data[[k]]$meta
+  if (names(method.data[k]) != "DIA") {
+    meta.df$id <- meta.df$DIA_id
+  }
+  meta.df$Patient <- meta.df$patient
+  meta.df$`Sample Type` <- meta.df$cellType
+  meta.df$patientID <- make.names(meta.df$patient)
+  
+  sorted.patients <- unique(meta.df$patient)
+  BeatAML.data <- load_not_norm_BeatAML_for_DMEA3(exclude.samples = sorted.patients)
+  
+  # run contrast combos
+  if (grepl("DIA", names(method.data)[k])) {
+    omics <- list("global" = method.data[[k]]$global)
+    feature.names <- "Gene"
+    temp.expr <- list(BeatAML.data$global)
+  } else {
+    omics <- list("global" = method.data[[k]]$global)
+    feature.names <- "Gene"
+    temp.expr <- list(BeatAML.data$global)
+    
+    # # don't use phospho since there were low cell counts
+    # omics <- list("global" = method.data[[k]]$global,
+    #               "phospho" = method.data[[k]]$phospho)
+    # feature.names <- c("Gene", "SUB_SITE")
+    # temp.expr <- list(BeatAML.data$global, BeatAML.data$phospho)
+  }
+  names(temp.expr) <- names(omics)
+  panSEA2_combos2(contrasts, contrast2=c("cellType","Sort Type","patientID"),
+                  meta.df = meta.df, omics = omics, expr = temp.expr,
+                  gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
+                  base.path = base.path, temp.path = method.path, 
+                  synapse_id = methodFolder)
+  # Calculating Weighted Voting scores...
+  # Error in 2:ncol(filtered.expr) : argument of length 0
+  
+  # get compiled DEGs
+  methodDEGs <- as.list(synapser::synGetChildren(methodFolder, list("file"), sortBy = 'NAME'))
+  if (length(methodDEGs) > 0) {
+    if (methodDEGs[[1]]$name == "Differential_expression_results.csv") {
+      methodFile <- synapser::synGet(methodDEGs[[1]]$id)
+      methodDEG <- read.csv(methodFile$path)
+      methodDEG$method <- names(method.data)[k]
+      all.degs <- rbind(all.degs, methodDEG)
+    }
+  }
+  
+  # also filter for non-MSC
+  setwd(base.path)
+  method.path.noMSC <- file.path(base.path, paste0(names(method.data)[k],"_noMSC"))
+  dir.create(paste0(names(method.data)[k],"_noMSC"))
+  setwd(paste0(names(method.data)[k],"_noMSC"))
+  methodFolder.noMSC <- 
+    synapser::synStore(synapser::Folder(paste0(names(method.data)[k],"_noMSC"),
+                                        parent = synapse_id))
+  meta.df.noMSC <- meta.df[meta.df$MSC == "Non_MSC",]
+  panSEA2_combos2(contrasts.noMSC, contrast2=c("cellType","Sort Type","patientID"), 
+                  meta.df = meta.df.noMSC, omics = omics, expr = temp.expr,
+                  gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
+                  base.path = base.path, temp.path = method.path.noMSC,
+                  synapse_id = methodFolder.noMSC)
+  # TMT no MSC: (just ran again from line above after)
+  # [1] "Running Aza_Sensitive_vs_Resistant with Sort Type == Flow"
+  # Error in .ebayes(fit = fit, proportion = proportion, stdev.coef.lim = stdev.coef.lim,  : 
+  #                    No residual degrees of freedom in linear model fits
+  #                  In addition: There were 50 or more warnings (use warnings() to see the first 50)
+  
+  # get compiled DEGs for analyses without MSCs
+  methodDEGs.noMSC <- as.list(synapser::synGetChildren(methodFolder.noMSC, list("file"), sortBy = 'NAME'))
+  if (length(methodDEGs.noMSC) > 0) {
+    if (methodDEGs.noMSC[[1]]$name == "Differential_expression_results.csv") {
+      methodFile <- synapser::synGet(methodDEGs.noMSC[[1]]$id)
+      methodDEG <- read.csv(methodFile$path)
+      methodDEG$method <- names(method.data)[k]
+      all.degs.noMSC <- rbind(all.degs.noMSC, methodDEG)
+    }
+  }
+}
+setwd(base.path)
+all.DEG.files <- list("Differential_expression_results.csv" = 
+                        all.degs,
+                      "Differential_expression_results_max_5_percent_FDR.csv" = 
+                        all.degs[all.degs$adj.P.Val <= 0.05, ],
+                      "Differential_expression_results_noMSC.csv" = 
+                        all.degs.noMSC,
+                      "Differential_expression_results_max_5_percent_FDR_noMSC.csv" = 
+                        all.degs.noMSC[all.degs.noMSC$adj.P.Val <= 0.05, ])
+all.DEG.files <- list("TMT_Differential_expression_results.csv" = 
+                        all.degs,
+                      "TMT_Differential_expression_results_max_5_percent_FDR.csv" = 
+                        all.degs[all.degs$adj.P.Val <= 0.05, ],
+                      "TMT_Differential_expression_results_noMSC.csv" = 
+                        all.degs.noMSC,
+                      "TMT_Differential_expression_results_max_5_percent_FDR_noMSC.csv" = 
+                        all.degs.noMSC[all.degs.noMSC$adj.P.Val <= 0.05, ])
+save_to_synapse(all.DEG.files, synapse_id)
+
 
 #### look at STRING network for DIA bead: CD14+ vs. CD34+ ####
 library(PCSF)
