@@ -925,7 +925,10 @@ contrasts.noMSC <- c("CD14", "Sort Type", "Aza", "Ven", "Aza.Ven")
 #BeatAML.data <- load_not_norm_BeatAML_for_DMEA2()
 #sorted.patients <- unique(mCombo$patient)
 
-gmt1 <- readRDS("gmt1_more.rds")
+#gmt1 <- readRDS("gmt1_more.rds")
+gmt1 <- msigdbr::msigdbr(collection="H")
+gmt1 <- DMEA::as_gmt(as.data.frame(gmt1),"gene_symbol","gs_name")
+saveRDS(gmt1,"gmt1_more.rds")
 setwd("analysis")
 dir.create("combined24-27")
 setwd("combined24-27")
@@ -960,13 +963,6 @@ method.data <- list("DIA_2batches_noOutliers"=dia.wo.out, "TMT_noOutliers"=tmt.w
 synapser::synLogin()
 for (k in 1:length(method.data)) {
   setwd(base.path)
-  method.path <- file.path(base.path, names(method.data)[k])
-  dir.create(names(method.data)[k])
-  setwd(names(method.data)[k])
-  methodFolder <- 
-    synapser::synStore(synapser::Folder(names(method.data)[k],
-                                        parent = synapse_id))
-  
   meta.df <- method.data[[k]]$meta
   if (names(method.data[k]) != "DIA") {
     meta.df$id <- meta.df$DIA_id
@@ -995,27 +991,8 @@ for (k in 1:length(method.data)) {
     # temp.expr <- list(BeatAML.data$global, BeatAML.data$phospho)
   }
   names(temp.expr) <- names(omics)
-  panSEA2_combos2(contrasts, contrast2=c("cellType","Sort Type","patientID"),
-                  meta.df = meta.df, omics = omics, expr = temp.expr,
-                  gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
-                  base.path = base.path, temp.path = method.path, 
-                  synapse_id = methodFolder)
-  # Calculating Weighted Voting scores...
-  # Error in 2:ncol(filtered.expr) : argument of length 0
   
-  # get compiled DEGs
-  methodDEGs <- as.list(synapser::synGetChildren(methodFolder, list("file"), sortBy = 'NAME'))
-  if (length(methodDEGs) > 0) {
-    if (methodDEGs[[1]]$name == "Differential_expression_results.csv") {
-      methodFile <- synapser::synGet(methodDEGs[[1]]$id)
-      methodDEG <- read.csv(methodFile$path)
-      methodDEG$method <- names(method.data)[k]
-      all.degs <- rbind(all.degs, methodDEG)
-    }
-  }
-  
-  # also filter for non-MSC
-  setwd(base.path)
+  # remove MSCs
   method.path.noMSC <- file.path(base.path, paste0(names(method.data)[k],"_noMSC"))
   dir.create(paste0(names(method.data)[k],"_noMSC"))
   setwd(paste0(names(method.data)[k],"_noMSC"))
@@ -1027,12 +1004,7 @@ for (k in 1:length(method.data)) {
                   meta.df = meta.df.noMSC, omics = omics, expr = temp.expr,
                   gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
                   base.path = base.path, temp.path = method.path.noMSC,
-                  synapse_id = methodFolder.noMSC)
-  # TMT no MSC: (just ran again from line above after)
-  # [1] "Running Aza_Sensitive_vs_Resistant with Sort Type == Flow"
-  # Error in .ebayes(fit = fit, proportion = proportion, stdev.coef.lim = stdev.coef.lim,  : 
-  #                    No residual degrees of freedom in linear model fits
-  #                  In addition: There were 50 or more warnings (use warnings() to see the first 50)
+                  synapse_id = methodFolder.noMSC, n.net=0, DMEA=FALSE)
   
   # get compiled DEGs for analyses without MSCs
   methodDEGs.noMSC <- as.list(synapser::synGetChildren(methodFolder.noMSC, list("file"), sortBy = 'NAME'))
@@ -1046,21 +1018,9 @@ for (k in 1:length(method.data)) {
   }
 }
 setwd(base.path)
-all.DEG.files <- list("Differential_expression_results.csv" = 
-                        all.degs,
-                      "Differential_expression_results_max_5_percent_FDR.csv" = 
-                        all.degs[all.degs$adj.P.Val <= 0.05, ],
-                      "Differential_expression_results_noMSC.csv" = 
+all.DEG.files <- list("Differential_expression_results_noMSC.csv" = 
                         all.degs.noMSC,
                       "Differential_expression_results_max_5_percent_FDR_noMSC.csv" = 
-                        all.degs.noMSC[all.degs.noMSC$adj.P.Val <= 0.05, ])
-all.DEG.files <- list("TMT_Differential_expression_results.csv" = 
-                        all.degs,
-                      "TMT_Differential_expression_results_max_5_percent_FDR.csv" = 
-                        all.degs[all.degs$adj.P.Val <= 0.05, ],
-                      "TMT_Differential_expression_results_noMSC.csv" = 
-                        all.degs.noMSC,
-                      "TMT_Differential_expression_results_max_5_percent_FDR_noMSC.csv" = 
                         all.degs.noMSC[all.degs.noMSC$adj.P.Val <= 0.05, ])
 save_to_synapse(all.DEG.files, synapse_id)
 
