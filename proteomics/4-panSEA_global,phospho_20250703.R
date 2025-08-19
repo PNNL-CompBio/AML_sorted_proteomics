@@ -914,6 +914,7 @@ if (file.exists("gmt_BeatAML_drug_MOA.rds")) {
 synapse_id <- "syn68888753"
 all.degs <- data.frame()
 all.degs.noMSC <- data.frame()
+all.degs.noMSC.bead <- data.frame()
 contrasts <- c("CD14", "CD34", #"Aza", "Ven", "Aza.Ven", # Aza + Ven has NA- need to debug why comparison isn't sensitive vs. resistant
                "Ven", "Sort Type", "MSC")
 contrasts.noMSC <- c("CD14", "Sort Type", #"Aza", "Ven", "Aza.Ven"
@@ -921,6 +922,7 @@ contrasts.noMSC <- c("CD14", "Sort Type", #"Aza", "Ven", "Aza.Ven"
 contrasts <- c("CD14", "CD34", "Aza", "Ven", "Aza.Ven", 
                "Sort Type", "MSC")
 contrasts.noMSC <- c("CD14", "Sort Type", "Aza", "Ven", "Aza.Ven")
+contrasts.noMSC.sort <- c("CD14", "Aza", "Ven", "Aza.Ven")
 #contrasts.noMSC <- c("CD14", "Sort Type")
 #BeatAML.data <- load_not_norm_BeatAML_for_DMEA2()
 #sorted.patients <- unique(mCombo$patient)
@@ -993,36 +995,69 @@ for (k in 1:length(method.data)) {
   }
   names(temp.expr) <- names(omics)
   
-  # remove MSCs
-  method.path.noMSC <- file.path(base.path, paste0(names(method.data)[k],"_noMSC"))
-  dir.create(paste0(names(method.data)[k],"_noMSC"))
-  setwd(paste0(names(method.data)[k],"_noMSC"))
-  methodFolder.noMSC <- 
-    synapser::synStore(synapser::Folder(paste0(names(method.data)[k],"_noMSC"),
-                                        parent = synapse_id))
-  meta.df.noMSC <- meta.df[meta.df$MSC == "Non_MSC",]
-  panSEA2_combos2(contrasts.noMSC, contrast2=c("cellType","Sort Type","patientID"), 
-                  meta.df = meta.df.noMSC, omics = omics, expr = temp.expr,
-                  gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
-                  base.path = base.path, temp.path = method.path.noMSC,
-                  synapse_id = methodFolder.noMSC, n.net=0, DMEA=FALSE)
-  
-  # get compiled DEGs for analyses without MSCs
-  methodDEGs.noMSC <- as.list(synapser::synGetChildren(methodFolder.noMSC, list("file"), sortBy = 'NAME'))
-  if (length(methodDEGs.noMSC) > 0) {
-    if (methodDEGs.noMSC[[1]]$name == "Differential_expression_results.csv") {
-      methodFile <- synapser::synGet(methodDEGs.noMSC[[1]]$id)
-      methodDEG <- read.csv(methodFile$path)
-      methodDEG$method <- names(method.data)[k]
-      all.degs.noMSC <- rbind(all.degs.noMSC, methodDEG)
+  # # remove MSCs
+  # method.path.noMSC <- file.path(base.path, paste0(names(method.data)[k],"_noMSC"))
+  # dir.create(paste0(names(method.data)[k],"_noMSC"))
+  # setwd(paste0(names(method.data)[k],"_noMSC"))
+  # methodFolder.noMSC <- 
+  #   synapser::synStore(synapser::Folder(paste0(names(method.data)[k],"_noMSC"),
+  #                                       parent = synapse_id))
+  # meta.df.noMSC <- meta.df[meta.df$MSC == "Non_MSC",]
+  # panSEA2_combos2(contrasts.noMSC, contrast2=c("cellType","Sort Type","patientID"), 
+  #                 meta.df = meta.df.noMSC, omics = omics, expr = temp.expr,
+  #                 gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
+  #                 base.path = base.path, temp.path = method.path.noMSC,
+  #                 synapse_id = methodFolder.noMSC, n.net=0, DMEA=FALSE)
+  # 
+  # # get compiled DEGs for analyses without MSCs
+  # methodDEGs.noMSC <- as.list(synapser::synGetChildren(methodFolder.noMSC, list("file"), sortBy = 'NAME'))
+  # if (length(methodDEGs.noMSC) > 0) {
+  #   if (methodDEGs.noMSC[[1]]$name == "Differential_expression_results.csv") {
+  #     methodFile <- synapser::synGet(methodDEGs.noMSC[[1]]$id)
+  #     methodDEG <- read.csv(methodFile$path)
+  #     methodDEG$method <- names(method.data)[k]
+  #     all.degs.noMSC <- rbind(all.degs.noMSC, methodDEG)
+  #   }
+  # }
+  # 
+  # filter for sorting method
+  for (temp.sort in unique(meta.df$`Sort Type`)) {
+    method.path.noMSC.bead <- file.path(base.path, paste0(names(method.data)[k],"_noMSC_",temp.sort))
+    dir.create(paste0(names(method.data)[k],"_noMSC_",temp.sort))
+    setwd(paste0(names(method.data)[k],"_noMSC_",temp.sort))
+    methodFolder.noMSC.bead <- 
+      synapser::synStore(synapser::Folder(paste0(names(method.data)[k],"_noMSC_",temp.sort),
+                                          parent = synapse_id))
+    meta.df.noMSC.bead <- meta.df[meta.df$MSC == "Non_MSC" & meta.df$`Sort Type`==temp.sort,]
+    panSEA2_combos2(contrasts.noMSC.sort, contrast2=c("cellType","patientID"), 
+                    meta.df = meta.df.noMSC.bead, omics = omics, expr = temp.expr,
+                    gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
+                    base.path = base.path, temp.path = method.path.noMSC.bead,
+                    synapse_id = methodFolder.noMSC.bead, n.net=0, DMEA=FALSE)
+    
+    # get compiled DEGs
+    methodDEGs.noMSC.bead <- as.list(synapser::synGetChildren(methodFolder.noMSC.bead, list("file"), sortBy = 'NAME'))
+    if (length(methodDEGs.noMSC.bead) > 0) {
+      if (methodDEGs.noMSC.bead[[1]]$name == "Differential_expression_results.csv") {
+        methodFile <- synapser::synGet(methodDEGs.noMSC.bead[[1]]$id)
+        methodDEG <- read.csv(methodFile$path)
+        methodDEG$method <- names(method.data)[k]
+        methodDEG$sortType <- temp.sort
+        all.degs.noMSC.bead <- rbind(all.degs.noMSC.bead, methodDEG)
+      }
     }
   }
+  
 }
 setwd(base.path)
 all.DEG.files <- list("Differential_expression_results_noMSC.csv" = 
                         all.degs.noMSC,
                       "Differential_expression_results_max_5_percent_FDR_noMSC.csv" = 
                         all.degs.noMSC[all.degs.noMSC$adj.P.Val <= 0.05, ])
+all.DEG.files <- list("Differential_expression_results_noMSC_sortFiltered.csv" = 
+                        all.degs.noMSC.bead,
+                      "Differential_expression_results_max_5_percent_FDR_noMSC_sortFiltered.csv" = 
+                        all.degs.noMSC.bead[all.degs.noMSC.bead$adj.P.Val <= 0.05, ])
 save_to_synapse(all.DEG.files, synapse_id)
 
 
