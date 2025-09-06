@@ -1023,6 +1023,7 @@ for (k in 1:length(method.data)) {
   # filter for sorting method
   for (temp.sort in unique(meta.df$`Sort Type`)) {
     method.path.noMSC.bead <- file.path(base.path, paste0(names(method.data)[k],"_noMSC_",temp.sort))
+    setwd(base.path)
     dir.create(paste0(names(method.data)[k],"_noMSC_",temp.sort))
     setwd(paste0(names(method.data)[k],"_noMSC_",temp.sort))
     methodFolder.noMSC.bead <- 
@@ -1034,6 +1035,7 @@ for (k in 1:length(method.data)) {
                     gmt.drug = gmt.drug, drug.sens = BeatAML.data$drug,
                     base.path = base.path, temp.path = method.path.noMSC.bead,
                     synapse_id = methodFolder.noMSC.bead, n.net=0, DMEA=FALSE)
+    # re-run line above to pick up where you left off if there is an error
     
     # get compiled DEGs
     methodDEGs.noMSC.bead <- as.list(synapser::synGetChildren(methodFolder.noMSC.bead, list("file"), sortBy = 'NAME'))
@@ -1064,7 +1066,7 @@ save_to_synapse(all.DEG.files, synapse_id)
 #### look at STRING network for DIA bead: CD14+ vs. CD34+ ####
 library(PCSF)
 data("STRINGv12")
-de <- read.csv("analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv")
+de <- read.csv("analysis/combined24-27/using_cellType-sortType-patient_factors/DIA_2batches_noOutliers_noMSC_Bead/no_filter/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv")
 de <- de[de$adj.P.Val<=0.05,] # 2597 gene symbols
 pos.de <- de[de$Log2FC>0,] # 1136
 neg.de <- de[de$Log2FC<0,] # 1461
@@ -1310,9 +1312,9 @@ pos.hall.edges <- STRINGv12[STRINGv12$from %in% pos.p38.hdac$Gene | # MAPK14: p3
 # RCy3::createNetworkFromIgraph(topGraph, title="posDEHDAC-p38_exp24")
 
 # are NFKB proteins more likely to be diffexp than not?
-diffexp <- read.csv("analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv")
+diffexp <- read.csv("analysis/combined24-27/using_cellType-sortType-patient_factors/DIA_2batches_noOutliers_noMSC_Bead/no_filter/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv")
 quant.nfkb <- diffexp[diffexp$Gene %in% hall.nfkb$gene_symbol,] # 57
-pos.nfkb <- pos.de[pos.de$Gene %in% quant.nfkb$Gene,] # 26
+pos.nfkb <- pos.de[pos.de$Gene %in% quant.nfkb$Gene,] # 24
 neg.nfkb <- neg.de[neg.de$Gene %in% quant.nfkb$Gene,] # 2
 
 # is MAPK14 or HDAC4 more likely to interact with NFKB signaling proteins than others?

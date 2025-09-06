@@ -6,7 +6,7 @@ n.top <- 5
 synapser::synLogin()
 #### 1. diffexp bar plot: top 20 ####
 # load input
-diffexp <- na.omit(read.csv(synapser::synGet("syn64543462")$path))
+diffexp <- na.omit(read.csv(synapser::synGet("syn69336657")$path)) # was syn64543462 before considering cell type, sort type, patient factors in differential expression
 sig.diffexp <- diffexp[diffexp$adj.P.Val <= 0.05,]
 top.pos.diffexp <- sig.diffexp %>% slice_max(Log2FC, n = n.top)
 top.neg.diffexp <- sig.diffexp %>% slice_min(Log2FC, n = n.top)
@@ -19,6 +19,7 @@ top.diffexp$Significance <- factor(top.diffexp$Significance, levels=c("Upregulat
 nSig <- nrow(sig.diffexp)
 nTotal <- nrow(diffexp)
 title <- paste0("Differentially expressed genes (",nSig,"/",nTotal, " with adjusted p <= 0.05)")
+#setOrder <- top.diffexp[order(top.diffexp$Log2FC*-log10(top.diffexp$adj.P.Val)),]$Gene
 setOrder <- top.diffexp[order(top.diffexp$Log2FC),]$Gene
 
 # bold CD14 and CD34
@@ -32,7 +33,7 @@ diffexp.bar <- ggplot(top.diffexp, aes(x=Gene, y=Log2FC, fill=Significance, alph
   theme(axis.text.x=element_text(face=geneFace)) +
   theme_classic(base_size = 12) + ggtitle(title) + coord_flip()
 diffexp.bar
-ggsave(paste0("diffexp_top_",n.top,"_sig_absLog2FC_barPlot.pdf"), diffexp.bar, width=7, height=7)
+ggsave(paste0("diffexp_top_",n.top,"_sig_absLog2FC_barPlot_",Sys.Date(),".pdf"), diffexp.bar, width=7, height=7)
 
 title <- paste0("Differentially expressed genes\n(",nSig,"/",nTotal, " with adjusted p <= 0.05)")
 top.diffexp$`-Log(FDR)` <- -log(top.diffexp$adj.P.Val, base=10)
@@ -48,12 +49,12 @@ diffexp.dot <- ggplot(top.diffexp, aes(x=Gene, y="CD14+ vs. CD34+", color=Log2FC
   theme(axis.title.x=element_blank(), axis.title.y=element_blank(), axis.text = element_text(size=16)) + 
   theme_classic(base_size = 12) + ggtitle(title) + coord_flip()
 diffexp.dot
-ggsave(paste0("diffexp_top_",n.top,"_sig_absLog2FC_dotPlot.pdf"), diffexp.dot, width=4, height=4)
+ggsave(paste0("diffexp_top_",n.top,"_sig_absLog2FC_dotPlot_",Sys.Date(),".pdf"), diffexp.dot, width=4, height=4)
 
 n.top <- 5
 #### 2. GSEA bar plot: Hallmark ####
 # load input
-gsea <- read.csv(synapser::synGet("syn64543470")$path)
+gsea <- read.csv(synapser::synGet("syn69336665")$path) # was syn64543470 before considering cell type, sort type, patient factors in differential expression
 top.gsea <- gsea %>% slice_max(abs(NES), n = n.top)
 top.gsea$Significance <- "FDR > 0.25"
 top.gsea[top.gsea$FDR_q_value <= 0.25 & top.gsea$p_value <= 0.05,]$Significance <- "FDR <= 0.25"
@@ -70,7 +71,7 @@ gsea.bar <- ggplot(top.gsea, aes(x=`Gene Set`, y=NES, fill=Significance)) + geom
   scale_fill_manual(values=c("red","grey"), breaks = c("FDR <= 0.25", "FDR > 0.25"))+
   theme_classic(base_size = 12) + ggtitle(title) + coord_flip()
 gsea.bar
-ggsave(paste0("GSEA_Hallmark_top_",n.top,"_sets_barPlot.pdf"), gsea.bar, width=7, height=7)
+ggsave(paste0("GSEA_Hallmark_top_",n.top,"_sets_barPlot_",Sys.Date(),".pdf"), gsea.bar, width=7, height=7)
 
 title <- paste0("Hallmark Gene Sets\n(",nSig,"/",nTotal, " with adjusted p <= 0.05)")
 top.gsea$`-Log(FDR)` <- -log(top.gsea$FDR_q_value, base=10)
@@ -86,9 +87,9 @@ gsea.dot <- ggplot(top.gsea, aes(x=`Gene Set`, y="CD14+ vs. CD34+", color=NES, s
   theme(axis.title.x=element_blank(), axis.title.y=element_blank(), axis.text = element_text(size=16)) + 
   theme_classic(base_size = 12) + ggtitle(title) + coord_flip()
 gsea.dot
-ggsave(paste0("gsea_top_",n.top,"_sig_absNES.pdf"), gsea.dot, width=4, height=4)
+ggsave(paste0("gsea_top_",n.top,"_sig_absNES_",Sys.Date(),".pdf"), gsea.dot, width=4, height=4)
 
-gsea <- read.csv(synapser::synGet("syn64543470")$path)
+gsea <- read.csv(synapser::synGet("syn69336665")$path) # was syn64543470 before considering cell type, sort type, patient factors in differential expression
 top.gsea <- gsea %>% slice_max(NES, n = n.top)
 top.gsea$`Gene Set` <- sub("HALLMARK_","",top.gsea$Feature_set)
 
@@ -101,7 +102,7 @@ gsea.bar <- ggplot(top.gsea, aes(x=`Gene Set`, y=NES, fill="red", alpha=0.5)) + 
   ggplot2::scale_x_discrete(limits = setOrder) +
   theme_classic(base_size = 12) + ggtitle(title) + coord_flip()
 gsea.bar
-ggsave(paste0("GSEA_Hallmark_top_",n.top,"_upregulated_sets_barPlot.pdf"), gsea.bar, width=5, height=3)
+ggsave(paste0("GSEA_Hallmark_top_",n.top,"_upregulated_sets_barPlot_",Sys.Date(),".pdf"), gsea.bar, width=5, height=3)
 
 
 #### 3. Diffexp dot plot: leading genes ####
@@ -125,7 +126,7 @@ diffexp.dot <- ggplot(sig.goi.diffexp, aes(x=Gene, y="CD14+ vs. CD34+", color=Lo
   theme(axis.title.x=element_blank(), axis.title.y=element_blank(), axis.text = element_text(size=16)) + 
   theme_classic(base_size = 12) + ggtitle(title) + coord_flip()
 diffexp.dot
-ggsave(paste0("NFKB_leadingEdge_sig_diffexp_dotPlot.pdf"), diffexp.dot, width=3, height=4)
+ggsave(paste0("NFKB_leadingEdge_sig_diffexp_dotPlot_",Sys.Date(),".pdf"), diffexp.dot, width=3, height=4)
 
 diffexp.dot <- ggplot(sig.goi.diffexp, aes(x=Gene, y="CD14+ vs. CD34+", color=Log2FC, size=`-Log(FDR)`)) + geom_point()+
   ggplot2::scale_x_discrete(limits = rev(setOrder)) +
@@ -136,11 +137,11 @@ diffexp.dot <- ggplot(sig.goi.diffexp, aes(x=Gene, y="CD14+ vs. CD34+", color=Lo
   theme(axis.title.y=element_blank(), #axis.text = element_text(size=16),
         axis.text.x = element_text(angle = 45, vjust=1, hjust=1))
 diffexp.dot
-ggsave(paste0("NFKB_leadingEdge_sig_diffexp_dotPlot_horizontal.pdf"), diffexp.dot, width=5, height=2)
-ggsave(paste0("NFKB_leadingEdge_sig_diffexp_dotPlot_horizontal_taller.pdf"), diffexp.dot, width=5, height=3)
+ggsave(paste0("NFKB_leadingEdge_sig_diffexp_dotPlot_horizontal_",Sys.Date(),".pdf"), diffexp.dot, width=5, height=2)
+ggsave(paste0("NFKB_leadingEdge_sig_diffexp_dotPlot_horizontal_taller_",Sys.Date(),".pdf"), diffexp.dot, width=5, height=3)
 #### 2. DMEA bar plot ####
 # load input
-moa.results <- read.csv(synapser::synGet("syn64606616")$path)
+moa.results <- read.csv(synapser::synGet("syn64606616")$path) # was syn64606616 before considering cell type, sort type, patient factors in differential expression
 top.gsea <- moa.results %>% slice_max(abs(NES), n = n.top)
 top.gsea$Significance <- "FDR > 0.25"
 top.gsea[top.gsea$FDR_q_value <= 0.25 & top.gsea$p_value <= 0.05,]$Significance <- "FDR <= 0.25"
@@ -156,7 +157,7 @@ gsea.bar <- ggplot(top.gsea, aes(x=`Drug Mechanism`, y=NES, fill=Significance)) 
   ggplot2::scale_x_discrete(limits = setOrder) +
   scale_fill_manual(values=c("red","grey"), breaks = c("FDR <= 0.25", "FDR > 0.25"))+
   theme_classic(base_size = 12) + ggtitle(title) + coord_flip()
-ggsave(paste0("DMEA_top_",n.top,"_MOAs_barPlot.pdf"), gsea.bar, width=7, height=7)
+ggsave(paste0("DMEA_top_",n.top,"_MOAs_barPlot_",Sys.Date(),".pdf"), gsea.bar, width=7, height=7)
 
 # only focus on significant MOAs for resistant CD14+ samples
 sig.moa.results <- moa.results[moa.results$FDR_q_value <= 0.25 & moa.results$p_value <= 0.05,]
@@ -172,7 +173,7 @@ gsea.bar <- ggplot(top.gsea, aes(x=`Drug Mechanism`, y=-NES, fill="red", alpha=0
   ggplot2::scale_x_discrete(limits = setOrder) +
   theme_classic(base_size = 12) + ggtitle(title) + coord_flip()
 gsea.bar
-ggsave(paste0("DMEA_top_",n.top,"_MOAs_forCD14PosSamples_barPlot.pdf"), gsea.bar, width=4, height=2)
+ggsave(paste0("DMEA_top_",n.top,"_MOAs_forCD14PosSamples_barPlot_",Sys.Date(),".pdf"), gsea.bar, width=4, height=2)
 
 #### 3. Drug correlation bar plot ####
 sig.moas <- unique(sig.moa.results$Drug_set)
@@ -259,8 +260,8 @@ for (n.top in n.top.list) {
   cat(plot.annot, "\n")
   dot.plot <- dot.plot + ggtitle(plot.annot) + theme(plot.title = element_text(hjust = 0.5, face="bold", size=16))
   dot.plot
-  ggplot2::ggsave(paste0("CorrelatedDrugs_barPlot_moaFill_sliceMaxPearson",n.top,".pdf"), dot.plot, width=6, height=5)
-  ggplot2::ggsave(paste0("CorrelatedDrugs_barPlot_moaFill_sliceMaxPearson",n.top,"_wider.pdf"), dot.plot, width=11, height=5)
+  ggplot2::ggsave(paste0("CorrelatedDrugs_barPlot_moaFill_sliceMaxPearson",n.top,"_",Sys.Date(),".pdf"), dot.plot, width=6, height=5)
+  ggplot2::ggsave(paste0("CorrelatedDrugs_barPlot_moaFill_sliceMaxPearson",n.top,"_wider_",Sys.Date(),".pdf"), dot.plot, width=11, height=5)
   
   dot.plot <- ggplot2::ggplot(temp.dot.df,
                               ggplot2::aes(
@@ -289,8 +290,8 @@ for (n.top in n.top.list) {
   cat(plot.annot, "\n")
   dot.plot <- dot.plot + ggtitle(plot.annot) + theme(plot.title = element_text(hjust = 0.5, face="bold", size=16))
   dot.plot
-  ggplot2::ggsave(paste0("CorrelatedDrugs_barPlot_moaFill_sliceMaxPearson",n.top,"_legendRight.pdf"), dot.plot, width=8, height=5)
-  ggplot2::ggsave(paste0("CorrelatedDrugs_barPlot_moaFill_sliceMaxPearson",n.top,"_wider_legendRight.pdf"), dot.plot, width=11, height=5)
+  ggplot2::ggsave(paste0("CorrelatedDrugs_barPlot_moaFill_sliceMaxPearson",n.top,"_legendRight_",Sys.Date(),".pdf"), dot.plot, width=8, height=5)
+  ggplot2::ggsave(paste0("CorrelatedDrugs_barPlot_moaFill_sliceMaxPearson",n.top,"_wider_legendRight_",Sys.Date(),".pdf"), dot.plot, width=11, height=5)
   
   # dot.plot <- ggplot2::ggplot(temp.dot.df,
   #                             ggplot2::aes(
