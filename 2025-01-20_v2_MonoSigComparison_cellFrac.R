@@ -989,7 +989,12 @@ gmt.drug <- readRDS("gmt_BeatAML_drug_MOA_2025-01-20.rds")
 #                   "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_MPP_protein-coding.csv")
 #cd14.sig <- na.omit(read.csv(synapser::synGet("syn64543462")$path)) # DIA
 
-sig.paths <- list("Sorted" = "analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+# sig.paths <- list("Sorted" = "analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+#                   "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like.csv",
+#                   "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
+#                   "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_MPP.csv")
+
+sig.paths <- list("Sorted" = "analysis/combined24-27/using_cellType-sortType-patient_factors/DIA_2batches_noOutliers_noMSC_Bead/no_filter/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
                   "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like.csv",
                   "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
                   "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_MPP.csv")
@@ -1006,6 +1011,10 @@ setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_
 # prot.coding.genes <- unique(unlist(strsplit(prot.coding$Gene.Names," "))) # 126950
 # sorted <- read.csv(sig.paths$Sorted)
 # prot.coding.genes <- unique(c(prot.coding.genes, sorted$Gene)) # 127396
+
+sorted.patients <- unique(dia.wo.out$meta$patient)
+BeatAML <- load_not_norm_BeatAML_for_DMEA3(exclude.samples=sorted.patients)
+
 uniprot.fasta <- seqinr::read.fasta("data/externalSignatures/UP000005640_9606.fasta.gz")
 gene.info <- seqinr::getAnnot(uniprot.fasta)
 gene.info2 <- sub(".*GN=","",gene.info)
@@ -1020,8 +1029,6 @@ length(sorted$Gene[(sorted$Gene %in% prot.coding.genes)]) / length(sorted$Gene) 
 colnames(BeatAML$global)[2:ncol(BeatAML$global)][!(colnames(BeatAML$global)[2:ncol(BeatAML$global)] %in% prot.coding.genes)] # 305 were not in my uniprot download
 length(colnames(BeatAML$global)[2:ncol(BeatAML$global)][(colnames(BeatAML$global)[2:ncol(BeatAML$global)] %in% prot.coding.genes)]) / length(colnames(BeatAML$global)[2:ncol(BeatAML$global)]) # 96.7598%
 saveRDS(prot.coding.genes3, "proteinCodingGenes.rds")
-
-dia.wo.out <- readRDS("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/DIA_2batches_noOutliers.rds")
 
 global.df <- dia.wo.out$global
 #rownames(global.df) <- global.df$Gene
@@ -1311,9 +1318,10 @@ pred$ProteinCoding <- TRUE # was false before
 # geneList <- strsplit(pred$Genes, ", ")
 # pred[all(geneList %in% protein.coding.genes),]$ProteinCoding <- TRUE # 339
 
-write.csv(pred, "venSensPredictions_2025-07-15.csv", row.names=FALSE)
+write.csv(pred, "venSensPredictions_2025-09-04.csv", row.names=FALSE)
+#topPred <- pred[which.max(pred$Pearson.est) | which.max(-log10(pred$Pearson.p)),]
 # best are all non-weighted:
-# RNA: Lasry: LRRC25, HMOX1, LRP1, SLC15A3, LILRB2, LILRA6, CHST15, RBM47, SGSH, SLC7A7, TNFRSF1B, LILRB1, CD1D, FGR, IQSEC1, CLEC7A (16, r=0.811)
+# RNA: Lasry: SLC7A7, LILRA6, LRP1, SGSH, LILRB1, CLEC7A, RBM47, FGR, LRRC25, SLC15A3, LILRB2, IQSEC1, CHST15, TNFRSF1B, HMOX1, CD1D (16, r=0.811)
 # Protein: Sorted: NCF2, FCGRT, KCTD12, CD93 (4, r=0.795)
 # RNA: Lasry: LRRC25 (1, r=0.760)
 # Protein: Sorted: NCF2 (1, r=0.728)
@@ -1403,20 +1411,21 @@ ggsave(paste0("1gene_proteinCoding_allSigs_PearsonEst_withNalpha_",Sys.Date(),".
 ggsave(paste0("1gene_proteinCoding_allSigs_PearsonEst_withNalpha_wider_",Sys.Date(),".pdf"), width=5, height=4)
 
 # do the protein-coding genes which belong to a signature have higher Pearson est or lower p than those which don't belong to a signature?
-p.test <- t.test(singlePred2[singlePred2$ProteinCoding & singlePred2$Signature!="None",]$Pearson.p, # 3615 with mean 0.096
-                     singlePred2[singlePred2$ProteinCoding & singlePred2$Signature=="None",]$Pearson.p, # 20166 with mean 0.222
+p.test <- t.test(singlePred2[singlePred2$ProteinCoding & singlePred2$Signature!="None",]$Pearson.p, # 5572 with mean 0.130
+                     singlePred2[singlePred2$ProteinCoding & singlePred2$Signature=="None",]$Pearson.p, # 18334 with mean 0.226
                    "less")
-# yes: p=2.522304e-191
+p.test
+# yes: p=6.458747e-131
 
-est.test <- t.test(singlePred2[singlePred2$ProteinCoding & singlePred2$Signature!="None",]$Pearson.est, # 3615 with mean 0.0188
-                   singlePred2[singlePred2$ProteinCoding & singlePred2$Signature=="None",]$Pearson.est, # 20166 with mean -0.0261
+est.test <- t.test(singlePred2[singlePred2$ProteinCoding & singlePred2$Signature!="None",]$Pearson.est, # 5572 with mean 0.0144
+                   singlePred2[singlePred2$ProteinCoding & singlePred2$Signature=="None",]$Pearson.est, # 18334 with mean -0.0263
                    "greater")
-# yes: p=1.548344e-11
+# yes: p=1.493237e-16
 
-est.test <- t.test(abs(singlePred2[singlePred2$ProteinCoding & singlePred2$Signature!="None",]$Pearson.est), # 3615 with mean 0.0188
-                   abs(singlePred2[singlePred2$ProteinCoding & singlePred2$Signature=="None",]$Pearson.est), # 20166 with mean -0.0261
+est.test <- t.test(abs(singlePred2[singlePred2$ProteinCoding & singlePred2$Signature!="None",]$Pearson.est), # 5572 with mean 0.296
+                   abs(singlePred2[singlePred2$ProteinCoding & singlePred2$Signature=="None",]$Pearson.est), # 18334 with mean 0.206
                    "greater")
-# yes: p=0
+# yes: p=6.533182e-250
 
 # do proteins have more significant Pearson correlations than genes?
 # sharedGenes <- plyr::ddply(singlePred2, .(Genes), summarize,
@@ -1467,6 +1476,8 @@ p.omics.test$p.value
 pred$label <- pred$Genes
 pred[pred$Genes=="LRRC25, HMOX1, LRP1, SLC15A3, LILRB2, LILRA6, CHST15, RBM47, SGSH, SLC7A7, TNFRSF1B, LILRB1, CD1D, FGR, IQSEC1, CLEC7A",]$label <- 
   "LRRC25, HMOX1, LRP1, SLC15A3,\nLILRB2, LILRA6, CHST15, RBM47,\nSGSH, SLC7A7, TNFRSF1B, LILRB1,\nCD1D, FGR, IQSEC1, CLEC7A"
+pred[pred$Genes=="SLC7A7, LILRA6, LRP1, SGSH, LILRB1, CLEC7A, RBM47, FGR, LRRC25, SLC15A3, LILRB2, IQSEC1, CHST15, TNFRSF1B, HMOX1, CD1D",]$label <- 
+  "SLC7A7, LILRA6, LRP1, SGSH,/nLILRB1, CLEC7A, RBM47, FGR,/nLRRC25, SLC15A3, LILRB2, IQSEC1,/nCHST15, TNFRSF1B, HMOX1, CD1D"
 ggplot(pred, aes(x=N_genes, y=Pearson.est, color=Signature, shape=Weight, alpha=N)) +
   geom_point() + geom_smooth(se=FALSE, linetype="dashed", show_guides=FALSE) + theme_classic() + scale_x_continuous(transform = "log10") +
   scale_color_manual(values=fillVals, breaks=names(sig.paths)) + 
@@ -1480,8 +1491,8 @@ ggsave(paste0("Ngenes_allSigs_PearsonEst_wLabelandNalpha_",Sys.Date(),".pdf"), w
 
 #pred <- read.csv("venSensPredictions_2025-07-14.csv")
 pred$label <- pred$Genes
-pred[pred$Genes=="LRRC25, HMOX1, LRP1, SLC15A3, LILRB2, LILRA6, CHST15, RBM47, SGSH, SLC7A7, TNFRSF1B, LILRB1, CD1D, FGR, IQSEC1, CLEC7A",]$label <- 
-  "LRRC25, HMOX1, LRP1, SLC15A3,\nLILRB2, LILRA6, CHST15, RBM47,\nSGSH, SLC7A7, TNFRSF1B, LILRB1,\nCD1D, FGR, IQSEC1, CLEC7A"
+pred[pred$Genes=="SLC7A7, LILRA6, LRP1, SGSH, LILRB1, CLEC7A, RBM47, FGR, LRRC25, SLC15A3, LILRB2, IQSEC1, CHST15, TNFRSF1B, HMOX1, CD1D",]$label <- 
+  "SLC7A7, LILRA6, LRP1, SGSH,/nLILRB1, CLEC7A, RBM47, FGR,/nLRRC25, SLC15A3, LILRB2, IQSEC1,/nCHST15, TNFRSF1B, HMOX1, CD1D"
 fillVals = RColorBrewer::brewer.pal(length(unique(pred$Signature)), "Set2")
 topGenesPerSig <- plyr::ddply(pred, .(Signature), summarize,
                               topGeneByQ = Genes[which.min(Pearson.q)],
