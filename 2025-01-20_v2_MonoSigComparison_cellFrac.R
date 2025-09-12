@@ -1029,6 +1029,8 @@ length(sorted$Gene[(sorted$Gene %in% prot.coding.genes)]) / length(sorted$Gene) 
 colnames(BeatAML$global)[2:ncol(BeatAML$global)][!(colnames(BeatAML$global)[2:ncol(BeatAML$global)] %in% prot.coding.genes)] # 305 were not in my uniprot download
 length(colnames(BeatAML$global)[2:ncol(BeatAML$global)][(colnames(BeatAML$global)[2:ncol(BeatAML$global)] %in% prot.coding.genes)]) / length(colnames(BeatAML$global)[2:ncol(BeatAML$global)]) # 96.7598%
 saveRDS(prot.coding.genes3, "proteinCodingGenes.rds")
+setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
+prot.coding.genes3 <- readRDS("proteinCodingGenes.rds")
 
 global.df <- dia.wo.out$global
 #rownames(global.df) <- global.df$Gene
@@ -1319,14 +1321,13 @@ pred$ProteinCoding <- TRUE # was false before
 # pred[all(geneList %in% protein.coding.genes),]$ProteinCoding <- TRUE # 339
 
 write.csv(pred, "venSensPredictions_2025-09-04.csv", row.names=FALSE)
+pred <- read.csv("venSensPredictions_2025-09-04.csv")
 #topPred <- pred[which.max(pred$Pearson.est) | which.max(-log10(pred$Pearson.p)),]
 # best are all non-weighted:
 # RNA: Lasry: SLC7A7, LILRA6, LRP1, SGSH, LILRB1, CLEC7A, RBM47, FGR, LRRC25, SLC15A3, LILRB2, IQSEC1, CHST15, TNFRSF1B, HMOX1, CD1D (16, r=0.811)
 # Protein: Sorted: NCF2, FCGRT, KCTD12, CD93 (4, r=0.795)
 # RNA: Lasry: LRRC25 (1, r=0.760)
 # Protein: Sorted: NCF2 (1, r=0.728)
-
-
 
 # ggplot(pred[pred$Pearson.q <= 0.05,], aes(x=N_genes, y=Pearson.est, color=Signature, shape=Weighted, alpha=N)) +
 #   geom_point() + geom_smooth(se=FALSE, linetype="dashed") + theme_classic() + scale_x_continuous(transform = "log10") +
@@ -1377,6 +1378,56 @@ ggplot(singlePred2, # was 32,254 rows on 2025-07-09, now 35,870 rows on 2025-07-
                                        singlePred2[singlePred2$DataType=="rna" & singlePred2$Signature!="",] %>% slice_min(Pearson.p, n=1, with_ties=FALSE))),
                             aes(label=Genes))
 ggsave(paste0("1gene_allSigs_PearsonEst_withNalpha_v2_",Sys.Date(),".pdf"), width=4, height=3)
+
+singlePred3 <- predAll[predAll$Pearson.p<0.05 & predAll$N>=100,]
+for (i in names(sigs)) {
+  singlePred3[,i] <- FALSE
+  singlePred3[singlePred3$Genes %in% sigs[[i]]$Gene,i] <- TRUE
+}
+singlePred3$Significant <- FALSE
+singlePred3[singlePred3$Pearson.p <= 0.05,]$Significant <- TRUE
+singlePred3$`None (Protein)` <- TRUE
+singlePred3[singlePred3$DataType=="global" & (singlePred3$Sorted | singlePred3$Triana | singlePred3$Lasry | singlePred3$`van Galen`),]$`None (Protein)` <- FALSE
+singlePred3$`None (RNA)` <- TRUE
+singlePred3[singlePred3$DataType=="rna" & (singlePred3$Sorted | singlePred3$Triana | singlePred3$Lasry | singlePred3$`van Galen`),]$`None (RNA)` <- FALSE
+long3 <- reshape2::melt(singlePred3[singlePred3$ProteinCoding,c("Genes","Pearson.est",names(sigs),"None (Protein)","None (RNA)")], 
+                        id.vars = c("Genes", "Pearson.est"), variable.name="Signature",measured.vars=c(names(sigs),"None (Protein)","None (RNA)"))
+long3 <- long3[long3$value,]
+
+ggplot(na.omit(long3), 
+       aes(x=reorder(Signature, -abs(Pearson.est), FUN=median), y=abs(Pearson.est), color=Signature)) + geom_violin(alpha=0) + 
+  geom_point() + geom_boxplot(width=0.4, alpha = 0) + theme_classic() + #scale_color_manual(values=c("gray",scales::hue_pal()(length(unique(singlePred2$Signature))-1)))+
+  scale_color_manual(values=c(RColorBrewer::brewer.pal(length(unique(pred$Signature)), "Set2"),"darkgrey","grey"),
+                     breaks=c(names(sigs),"None (Protein)", "None (RNA)"))+
+  labs(y="Absolute Pearson r", x="Signature") + theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+ggsave(paste0("1gene_proteinCoding_allSigs_PearsonEst_boxPlot_minN100_",Sys.Date(),".pdf"), width=4, height=4)
+ggsave(paste0("1gene_proteinCoding_allSigs_PearsonEst_boxPlot_minN100_width6_",Sys.Date(),".pdf"), width=6, height=4)
+ggsave(paste0("1gene_proteinCoding_allSigs_PearsonEst_boxPlot_minN100_width5_",Sys.Date(),".pdf"), width=5, height=4)
+
+singlePred3 <- predAll[predAll$Pearson.p<0.05,]
+for (i in names(sigs)) {
+  singlePred3[,i] <- FALSE
+  singlePred3[singlePred3$Genes %in% sigs[[i]]$Gene,i] <- TRUE
+}
+singlePred3$Significant <- FALSE
+singlePred3[singlePred3$Pearson.p <= 0.05,]$Significant <- TRUE
+singlePred3$`None (Protein)` <- TRUE
+singlePred3[singlePred3$DataType=="global" & (singlePred3$Sorted | singlePred3$Triana | singlePred3$Lasry | singlePred3$`van Galen`),]$`None (Protein)` <- FALSE
+singlePred3$`None (RNA)` <- TRUE
+singlePred3[singlePred3$DataType=="rna" & (singlePred3$Sorted | singlePred3$Triana | singlePred3$Lasry | singlePred3$`van Galen`),]$`None (RNA)` <- FALSE
+long3 <- reshape2::melt(singlePred3[singlePred3$ProteinCoding,c("Genes","Pearson.p",names(sigs),"None (Protein)","None (RNA)")], 
+                        id.vars = c("Genes", "Pearson.p"), variable.name="Signature",measured.vars=c(names(sigs),"None (Protein)","None (RNA)"))
+long3 <- long3[long3$value,]
+
+ggplot(na.omit(long3), 
+       aes(x=reorder(Signature, -log10(Pearson.p), FUN=median), y=-log10(Pearson.p), color=Signature)) + geom_violin(alpha=0) + 
+  geom_point() + geom_boxplot(width=0.4, alpha = 0) + theme_classic() + #scale_color_manual(values=c("gray",scales::hue_pal()(length(unique(singlePred2$Signature))-1)))+
+  scale_color_manual(values=c(RColorBrewer::brewer.pal(length(unique(pred$Signature)), "Set2"),"darkgrey","grey"),
+                     breaks=c(names(sigs),"None (Protein)", "None (RNA)"))+
+  labs(y="-Log(Pearson p-value)", x="Signature") + theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+ggsave(paste0("1gene_proteinCoding_allSigs_PearsonP_boxPlot_minN100_",Sys.Date(),".pdf"), width=4, height=4)
+ggsave(paste0("1gene_proteinCoding_allSigs_PearsonP_boxPlot_minN100_width6_",Sys.Date(),".pdf"), width=6, height=4)
+ggsave(paste0("1gene_proteinCoding_allSigs_PearsonP_boxPlot_minN100_width5_",Sys.Date(),".pdf"), width=5, height=4)
 
 ggplot(singlePred2[singlePred2$ProteinCoding,], # 23,781 (73.73%); note: 9153/9411 (97.26%) global rows are protein-coding? maybe because of difference in database?
        aes(x=Pearson.est, y=-log10(Pearson.p), color=Signature, shape=DataType, alpha=N)) +
@@ -1472,6 +1523,24 @@ p.omics.test <- t.test(singlePred2[singlePred2$ProteinCoding & singlePred2$DataT
                        "greater", paired=FALSE)
 p.omics.test$p.value
 # yes, p = 3.401272e-44
+
+fillVals = RColorBrewer::brewer.pal(length(unique(pred$Signature)), "Set2")
+p1 <- ggplot(dplyr::distinct(pred[pred$SelectionMetric=="Pearson.p" & !pred$allGenesSameDir & pred$Weighted,]), aes(x=N_genes, y=Pearson.est, color=Signature, shape=Weight)) +
+  geom_point(size=3) + #geom_smooth(se=FALSE, linetype="dashed", alpha=0.5) + 
+  theme_classic() + scale_x_continuous(transform = "log10") +
+  scale_color_manual(values=fillVals, breaks=names(sig.paths)) + xlab("# of Features") + ylab("Pearson r")
+ggsave(paste0("Ngenes_allSigs_PearsonEst_PearsonPSelection_",Sys.Date(),".pdf"), p1, width=5, height=4) # was height 3
+
+fillVals = RColorBrewer::brewer.pal(length(unique(pred$Signature)), "Set2")
+p2 <- ggplot(dplyr::distinct(pred[pred$SelectionMetric=="Pearson.p" & !pred$allGenesSameDir & pred$Weighted,]), aes(x=N_genes, y=-log10(Pearson.p), color=Signature, shape=Weight)) +
+  geom_point(size=3) + #geom_smooth(se=FALSE, linetype="dashed", alpha=0.5) + 
+  theme_classic() + scale_x_continuous(transform = "log10") +
+  scale_color_manual(values=fillVals, breaks=names(sig.paths)) + xlab("# of Features") + ylab("-Log(Pearson p)")
+ggsave(paste0("Ngenes_allSigs_PearsonP_PearsonPSelection_",Sys.Date(),".pdf"), p2, width=5, height=4) # was height 3
+
+library(patchwork)
+p2/p1+plot_layout(guides="collect")
+ggsave(paste0("Ngenes_allSigs_PearsonEstORp_PearsonPSelection_",Sys.Date(),".pdf"), width=5, height=4) # was height 3
 
 pred$label <- pred$Genes
 pred[pred$Genes=="LRRC25, HMOX1, LRP1, SLC15A3, LILRB2, LILRA6, CHST15, RBM47, SGSH, SLC7A7, TNFRSF1B, LILRB1, CD1D, FGR, IQSEC1, CLEC7A",]$label <- 
