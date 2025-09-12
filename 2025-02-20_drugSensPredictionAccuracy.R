@@ -383,10 +383,15 @@ setwd("data")
 gmt.drug <- readRDS("gmt_BeatAML_drug_MOA_2025-01-20.rds")
 
 # load sorted proteomics signature
-sig.paths <- list("Sorted" = "analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
-                  "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv",
+# sig.paths <- list("Sorted" = "analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+#                   "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like_noNA.csv",
+#                   "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
+#                   "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv")
+
+sig.paths <- list("Sorted" = "analysis/combined24-27/using_cellType-sortType-patient_factors/DIA_2batches_noOutliers_noMSC_Bead/no_filter/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv",
+                  "van Galen" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_van_Galen_AML_D0_Mono-like_vs_Prog-like.csv",
                   "Triana" = "data/externalSignatures/formatted/Triana_RNA_AML_100PercentCells_Classical-Monocytes_vs_HSCs-and-MPPs_differentialExpression.csv",
-                  "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_HSC_protein-coding.csv")
+                  "Lasry" = "data/externalSignatures/formatted/notFilteredForMalignant/Differential_expression_Lasry_AML_CD14PosMonocyte_vs_MPP.csv")
 
 # import signatures and filter
 sigs <- list()
@@ -397,8 +402,8 @@ for (i in names(sig.paths)) {
 }
 sigs <- readRDS("mono_vs_prog_sigs_ProteinCoding.rds")
 setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-dir.create("Monocyte_vs_progenitor_signatures_beadOnly_LOO_2025-05-30")
-setwd("Monocyte_vs_progenitor_signatures_beadOnly_LOO_2025-05-30")
+dir.create("Monocyte_vs_progenitor_signatures_beadOnly_LOO_2025-09-11")
+setwd("Monocyte_vs_progenitor_signatures_beadOnly_LOO_2025-09-11")
 
 dia.wo.out <- readRDS("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/DIA_2batches_noOutliers.rds")
 # sorted.patients <- c("18-00105", "21-00839", "22-00571", "22-00117", "16-01184",
@@ -438,8 +443,8 @@ save_to_synapse_v2(all.DMEA.files)
 
 # redo plots
 setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-dir.create("Monocyte_vs_progenitor_signatures_beadOnly_LOO_2025-05-30")
-setwd("Monocyte_vs_progenitor_signatures_beadOnly_LOO_2025-05-30")
+dir.create("Monocyte_vs_progenitor_signatures_beadOnly_LOO_2025-09-11")
+setwd("Monocyte_vs_progenitor_signatures_beadOnly_LOO_2025-09-11")
 drug.corr.df <- read.csv("drugAccuracy.csv")
 pt.corr.df <- read.csv("patientAccuracy.csv")
 p.df <- pt.corr.df
@@ -555,7 +560,7 @@ gmt.drug <- readRDS("gmt_BeatAML_drug_MOA_2025-01-20.rds")
 # import signatures and filter
 #topPred <- read.csv("Monocyte_vs_progenitor_signatures_beadOnly_2025-06-30/topVenSensPredictions_2025-06-30.csv")
 setwd("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
-topPred <- read.csv("Monocyte_vs_progenitor_signatures_beadOnly_2025-07-09/topVenSensPredictions_2025-07-09.csv")
+topPred <- read.csv("Monocyte_vs_progenitor_signatures_beadOnly_2025-07-14/topVenSensPredictions_2025-07-15.csv")
 sigs <- list()
 setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
 types <- c()
@@ -574,8 +579,8 @@ for (i in 1:nrow(topPred)) {
 }
 
 # try just mixed sigs
-topMixPred <- read.csv("topMixVenSensPredictions_2025-07-15.csv")
-sigs2 <- readRDS("topMixVenSensSigs_2025-07-15.rds")
+topMixPred <- read.csv("Monocyte_vs_progenitor_signatures_beadOnly_2025-07-14/topMixVenSensPredictions_2025-07-15.csv")
+sigs2 <- readRDS("Monocyte_vs_progenitor_signatures_beadOnly_2025-07-14/topMixVenSensSigs_2025-07-15.rds")
 types <- c("global","rna")
 
 setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/")
@@ -583,8 +588,8 @@ setwd("/Users/gara093/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_
 #setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-06-30_LOO")
 #dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-07-09_LOO")
 #setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-07-09_LOO")
-dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-07-15_LOO")
-setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-07-15_LOO")
+dir.create("Monocyte_vs_progenitor_signatures_beadOnly_2025-09-11_LOO")
+setwd("Monocyte_vs_progenitor_signatures_beadOnly_2025-09-11_LOO")
 
 dia.wo.out <- readRDS("~/OneDrive - PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/DIA_2batches_noOutliers.rds")
 # sorted.patients <- c("18-00105", "21-00839", "22-00571", "22-00117", "16-01184",
@@ -629,15 +634,20 @@ evalResults <- list("drug" = read.csv("predictions.csv"),
                     "pt.corr" = read.csv("patientAccuracy.csv"))
 
 hist(evalResults$pt.corr$Pearson.est)
-med.pt.r <- median(evalResults$pt.corr$Pearson.est) # 0.78688327829765
-med.pt.r.s <- median(evalResults$pt.corr[evalResults$pt.corr$Signature=="Sorted: 26 proteins",]$Pearson.est) # 0.788259468364285
-med.pt.r.l <- median(evalResults$pt.corr[evalResults$pt.corr$Signature=="Lasry: 46 genes",]$Pearson.est) # 0.784189779103954
+med.pt.r <- median(evalResults$pt.corr$Pearson.est)
+med.pt.r # 0.786825
+med.pt.r.s <- median(evalResults$pt.corr[evalResults$pt.corr$Signature=="Sorted: 25 proteins",]$Pearson.est)
+med.pt.r.s # 0.7885036
+med.pt.r.l <- median(evalResults$pt.corr[evalResults$pt.corr$Signature=="Lasry: 46 genes",]$Pearson.est)
+med.pt.r.l # 0.7841898
 
-sd.pt.r <- sd(evalResults$pt.corr$Pearson.est) # 0.168570024195598
-frac.sd <- sd.pt.r/med.pt.r # 0.214224941417339
+sd.pt.r <- sd(evalResults$pt.corr$Pearson.est)
+sd.pt.r # 0.1684279
+frac.sd <- sd.pt.r/med.pt.r
+frac.sd # 0.2140601
 pt.r <- reshape2::dcast(evalResults$pt.corr, Barcode.ID ~ Signature, value.var="Pearson.est")
 
-multi.cor <- cor.test(pt.r$`Lasry: 46 genes`, pt.r$`Sorted: 26 proteins`)
+multi.cor <- cor.test(pt.r$`Lasry: 46 genes`, pt.r$`Sorted: 25 proteins`)
 Pearson.est <- multi.cor$estimate
 Pearson.p <- multi.cor$p.value
 stats_pearson <- substitute(
@@ -647,9 +657,9 @@ stats_pearson <- substitute(
     p = format(Pearson.p, digits = 3)
   )
 )
-ggplot(pt.r, aes(x=`Lasry: 46 genes`, y=`Sorted: 26 proteins`)) + geom_point() + theme_minimal() + 
+ggplot(pt.r, aes(x=`Lasry: 46 genes`, y=`Sorted: 25 proteins`)) + geom_point() + theme_minimal() + 
   scale_x_continuous(limits=c(-1,1)) + scale_y_continuous(limits=c(-1,1)) + 
-  labs(x="Lasry RNA-seq: 46 Genes", y = "Sorted Proteomics: 26 Proteins", title="Drug Sensitivity Prediction Accuracy\nfor Each Patient (Pearson Correlation)") +
+  labs(x="Lasry RNA-seq: 46 Genes", y = "Sorted Proteomics: 25 proteins", title="Drug Sensitivity Prediction Accuracy\nfor Each Patient (Pearson Correlation)") +
   geom_smooth(se=FALSE, linetype="dashed") + ggrepel::geom_label_repel(aes(label=Barcode.ID)) + theme(plot.title=element_text(hjust=0.5)) +
   ggplot2::geom_text(
     x = Inf, y = -Inf, vjust = "inward", hjust = "inward",
@@ -658,13 +668,13 @@ ggplot(pt.r, aes(x=`Lasry: 46 genes`, y=`Sorted: 26 proteins`)) + geom_point() +
   ) 
 ggsave("Lasry_vs_Sorted_multipleGenes_ptCorr.pdf", width=4, height=4)
 
-multi.test <- t.test(evalResults$pt.corr[evalResults$pt.corr$Signature == "Lasry: 46 genes",]$Pearson.est, # mean 0.744
-                     evalResults$pt.corr[evalResults$pt.corr$Signature == "Sorted: 26 proteins",]$Pearson.est, # mean 0.747
-                     alternative = "greater"
+multi.test <- t.test(evalResults$pt.corr[evalResults$pt.corr$Signature == "Lasry: 46 genes",]$Pearson.est, # mean 0.7444206
+                     evalResults$pt.corr[evalResults$pt.corr$Signature == "Sorted: 25 proteins",]$Pearson.est, # mean 0.7473072 
+                     #alternative = "less"
 )
 multi.test$estimate
 multi.test$p.value
-# greater p = 0.564; two-sided p = 0.872; less p = 0.436
+# greater p = 0.5685869; two-sided p = 0.8628261; less p = 0.4314131
 
 ggplot(evalResults$pt.corr, aes(x=Signature, y=Pearson.est)) + geom_violin() + 
   geom_boxplot() + geom_point() + theme_classic() + 
@@ -692,29 +702,29 @@ ggplot(pt.r.meta, aes(x=value, y=Pearson.est)) + geom_violin() +
   labs(y="Pearson r", title="Drug Sensitivity Prediction Accuracy for Each Patient") + 
   theme(plot.title=element_text(hjust=0.5), axis.text.x=element_text(angle=45, hjust=1, vjust=1), axis.title.x=element_blank())# + scale_y_continuous(limits=c(-1,1))
 ggsave("ptCorr_meta.pdf", width=5, height=4)
-flt3.test <- t.test(pt.r.meta[pt.r.meta$variable == "FLT3.ITD" & pt.r.meta$value == "FALSE",]$Pearson.est, # mean 0.758
-                    pt.r.meta[pt.r.meta$variable == "FLT3.ITD" & pt.r.meta$value == "TRUE",]$Pearson.est,  # mean 0.724
+flt3.test <- t.test(pt.r.meta[pt.r.meta$variable == "FLT3.ITD" & pt.r.meta$value == "FALSE",]$Pearson.est, # mean 0.7583706
+                    pt.r.meta[pt.r.meta$variable == "FLT3.ITD" & pt.r.meta$value == "TRUE",]$Pearson.est,  # mean 0.7243523
                     alternative = "greater"
 )
 flt3.test$p.value
 flt3.test$estimate
-# two-sided p = 0.04922388; FALSE greater than TRUE p = 0.02461194; less p = 0.975 ***SIGNIFICANT***
+# FALSE greater than TRUE p = 0.02509605 ***SIGNIFICANT***
 
-initial.test <- t.test(pt.r.meta[pt.r.meta$variable == "InitialAMLDiagnosis" & pt.r.meta$value == "FALSE",]$Pearson.est, # mean 0.726
-                       pt.r.meta[pt.r.meta$variable == "InitialAMLDiagnosis" & pt.r.meta$value == "TRUE",]$Pearson.est, # mean 0.756
+initial.test <- t.test(pt.r.meta[pt.r.meta$variable == "InitialAMLDiagnosis" & pt.r.meta$value == "FALSE",]$Pearson.est, # mean 0.7260607
+                       pt.r.meta[pt.r.meta$variable == "InitialAMLDiagnosis" & pt.r.meta$value == "TRUE",]$Pearson.est, # mean 0.7562088 
                        alternative = "less"
 )
 initial.test$p.value
 initial.test$estimate
-# two-sided p = 0.1197576; less p = 0.05987881; greater p = 0.940
+# less p =  0.05956627
 
-chemo.test <- t.test(pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "FALSE",]$Pearson.est, # mean 0.742
-                     pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "TRUE",]$Pearson.est, # mean 0.753
+chemo.test <- t.test(pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "FALSE",]$Pearson.est, # mean 0.7423232
+                     pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "TRUE",]$Pearson.est, # mean 0.7532672 
                      alternative = "less"
 )
 chemo.test$p.value
 chemo.test$estimate
-# two-sided p = 0.482886; greater p = 0.758557; less p = 0.241443
+# less p = 0.2439914
 
 sigs.tested <- unique(pt.r.meta$Signature)
 for (i in sigs.tested) {
@@ -748,7 +758,7 @@ for (i in sigs.tested) {
 ven.corr <- evalResults$drug[evalResults$drug$Drug == "Venetoclax" & !is.na(evalResults$drug$delta_AUC_squared),]
 pt.r <- reshape2::dcast(ven.corr, Barcode.ID ~ Signature, value.var="delta_AUC_squared")
 
-multi.cor <- cor.test(pt.r$`Lasry: 46 genes`, pt.r$`Sorted: 26 proteins`)
+multi.cor <- cor.test(pt.r$`Lasry: 46 genes`, pt.r$`Sorted: 25 proteins`)
 Pearson.est <- multi.cor$estimate
 Pearson.p <- multi.cor$p.value
 stats_pearson <- substitute(
@@ -772,9 +782,9 @@ for (i in 2:ncol(pt.r)) {
   }
 }
 # minVal ends up as 0, maxVal ends up as 37965.320698934
-ggplot(pt.r, aes(x=`Lasry: 46 genes`, y=`Sorted: 26 proteins`)) + geom_point() + theme_minimal() + 
+ggplot(pt.r, aes(x=`Lasry: 46 genes`, y=`Sorted: 25 proteins`)) + geom_point() + theme_minimal() + 
   scale_x_continuous(limits=c(0,maxVal)) + scale_y_continuous(limits=c(0,maxVal)) + 
-  labs(x="Lasry RNA-seq: 46 Genes", y = "Sorted Proteomics: 26 Proteins", title="Ven Sensitivity Prediction Accuracy\nfor Each Patient (SSE)") +
+  labs(x="Lasry RNA-seq: 46 Genes", y = "Sorted Proteomics: 25 proteins", title="Ven Sensitivity Prediction Accuracy\nfor Each Patient (SSE)") +
   geom_smooth(method="lm",se=FALSE, linetype="dashed") + ggrepel::geom_label_repel(aes(label=Barcode.ID)) + theme(plot.title=element_text(hjust=0.5)) +
   ggplot2::geom_text(
     x = Inf, y = -Inf, vjust = "inward", hjust = "inward",
@@ -790,12 +800,12 @@ ggplot(ven.corr, aes(x=Signature, y=delta_AUC_squared)) + geom_violin() +
 ggsave("Lasry_vs_Sorted_venSSE.pdf", width=3, height=4)
 
 multi.test <- t.test(ven.corr[ven.corr$Signature == "Lasry: 46 genes",]$delta_AUC_squared, # mean 2718.148
-                     ven.corr[ven.corr$Signature == "Sorted: 26 proteins",]$delta_AUC_squared, # mean 2314.864
-                     #alternative = "less"
+                     ven.corr[ven.corr$Signature == "Sorted: 25 proteins",]$delta_AUC_squared, # mean 2313.187
+                     alternative = "greater"
 )
 multi.test$p.value
 multi.test$estimate
-# greater p = 0.216; two-sided p = 0.433; less p = 0.784
+# greater p = 0.2146595; two-sided p = 0.4293191; less p = 0.7853405
 
 # redo with metadata
 meta.df <- BeatAML$meta
@@ -815,40 +825,40 @@ ggplot(pt.r.meta, aes(x=value, y=delta_AUC_squared)) + geom_violin() +
   labs(y="SSE", title="Ven Sensitivity Prediction Accuracy for Each Patient") + 
   theme(plot.title=element_text(hjust=0.5), axis.text.x=element_text(angle=45, hjust=1, vjust=1), axis.title.x=element_blank())# + scale_y_continuous(limits=c(-1,1))
 ggsave("venSSE_meta.pdf", width=5, height=4)
-flt3.test <- t.test(pt.r.meta[pt.r.meta$variable == "FLT3.ITD" & pt.r.meta$value == "FALSE",]$delta_AUC_squared, # mean 2548.941
-                    pt.r.meta[pt.r.meta$variable == "FLT3.ITD" & pt.r.meta$value == "TRUE",]$delta_AUC_squared,  # mean 2447.478
-                    #alternative = "less"
+flt3.test <- t.test(pt.r.meta[pt.r.meta$variable == "FLT3.ITD" & pt.r.meta$value == "FALSE",]$delta_AUC_squared, # mean 2550.963
+                    pt.r.meta[pt.r.meta$variable == "FLT3.ITD" & pt.r.meta$value == "TRUE",]$delta_AUC_squared,  # mean 2440.551 
+                    alternative = "less"
 )
 flt3.test$p.value
 flt3.test$estimate
-# two-sided p = 0.8701724; FALSE greater than TRUE p = 0.4350862; less p = 0.5649138
+# FALSE greater than TRUE p = 0.428956; less p = 0.571044
 
-initial.test <- t.test(pt.r.meta[pt.r.meta$variable == "InitialAMLDiagnosis" & pt.r.meta$value == "FALSE",]$delta_AUC_squared, # mean 2578.482
-                       pt.r.meta[pt.r.meta$variable == "InitialAMLDiagnosis" & pt.r.meta$value == "TRUE",]$delta_AUC_squared, # mean 2488.469
-                       #alternative = "greater"
+initial.test <- t.test(pt.r.meta[pt.r.meta$variable == "InitialAMLDiagnosis" & pt.r.meta$value == "FALSE",]$delta_AUC_squared, # mean 2578.667
+                       pt.r.meta[pt.r.meta$variable == "InitialAMLDiagnosis" & pt.r.meta$value == "TRUE",]$delta_AUC_squared, # mean 2487.168
+                       alternative = "greater"
 )
 initial.test$p.value
 initial.test$estimate
-# two-sided p = 0.8867806; less p = 0.5566097; greater p = 0.4433903
+# less p = 0.5579233; greater p = 0.4420767
 
-chemo.test <- t.test(pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "FALSE",]$delta_AUC_squared, # mean 2164.908; 174 data points
-                     pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "TRUE",]$delta_AUC_squared, # mean 3390.478; 70 data points
-                     #alternative = "greater"
+chemo.test <- t.test(pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "FALSE",]$delta_AUC_squared, # mean 2162.294
+                     pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "TRUE",]$delta_AUC_squared, # mean 3394.053
+                     alternative = "less"
 )
 chemo.test$p.value
 chemo.test$estimate
-# two-sided p = 0.1084487; greater p = 0.9457757; less p = 0.05422434
+# greater p = 0.9477143; less p = 0.05228567
 
-chemo.test.s <- t.test(pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "FALSE" & pt.r.meta$Signature=="Sorted: 26 proteins",]$delta_AUC_squared, # mean 2024
-                        pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "TRUE" & pt.r.meta$Signature=="Sorted: 26 proteins",]$delta_AUC_squared, # mean 3036
+chemo.test.s <- t.test(pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "FALSE" & pt.r.meta$Signature=="Sorted: 25 proteins",]$delta_AUC_squared, # mean 2019.436 
+                        pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "TRUE" & pt.r.meta$Signature=="Sorted: 25 proteins",]$delta_AUC_squared, # mean 3043.368 
                         alternative = "less"
 )
 chemo.test.s$p.value
 chemo.test.s$estimate
-# less p = 0.1540844
+# less p = 0.1475887
 
-chemo.test.l <- t.test(pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "FALSE" & pt.r.meta$Signature=="Lasry: 46 genes",]$delta_AUC_squared, # mean 2305
-                         pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "TRUE" & pt.r.meta$Signature=="Lasry: 46 genes",]$delta_AUC_squared, # mean 3745
+chemo.test.l <- t.test(pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "FALSE" & pt.r.meta$Signature=="Lasry: 46 genes",]$delta_AUC_squared, # mean 2305.152
+                         pt.r.meta[pt.r.meta$variable == "PostChemotherapy" & pt.r.meta$value == "TRUE" & pt.r.meta$Signature=="Lasry: 46 genes",]$delta_AUC_squared, # mean 3744.737 
                          alternative = "less"
 )
 chemo.test.l$p.value
@@ -1297,9 +1307,9 @@ npm1.meta <- npm1.meta[npm1.meta$labId %in% sorted.patients,] # 9 patients
 write.csv(npm1.meta, "Table_S1_sortedDIApatients.csv", row.names=FALSE)
 
 missing.pts <- sort(sorted.patients[!(sorted.patients %in% npm1.meta$labId)])
-missing.pts
+missing.pts # "16-01184" "19-00074" "19-00406" "20-00083" "20-00450" "21-00034" "21-00176" "21-00432" "21-00839" "22-00117" "22-00251" "22-00571" "22-00697" "23-00083"
 found.pts <- sort(sorted.patients[(sorted.patients %in% npm1.meta$labId)])
-found.pts
+found.pts # "17-01060" "18-00103" "18-00105" "18-00190" "18-00260" "18-00290" "18-00390" "19-00019" "19-00431"
 
 #### check for genes of interest ####
 # from papers Anupriya sent
@@ -1337,7 +1347,7 @@ lsc <- lsc[-c(1,2),]
 lsc <- as.list(lsc)
 
 # get our sorted signature
-sorted <- read.csv("~/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/combined24-27/DIA_2batches_noOutliers_noMSC/Sort Type_Bead/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv")
+sorted <- read.csv("~/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis/combined24-27/using_cellType-sortType-patient_factors/DIA_2batches_noOutliers_noMSC_Bead/no_filter/CD14_Pos_vs_Neg/global/Differential_expression/Differential_expression_results.csv")
 sorted <- sorted[sorted$adj.P.Val <= 0.05,]
 
 anupriya.sigs <- append(lsc, list("BCL2 Res Down" = bcl2.mdm.res.dn, 
@@ -1411,3 +1421,4 @@ dev.off()
 write.csv(anu.sigs[anu.sigs$N_sigs > 1 & grepl("Sorted",anu.sigs$Sigs) &
                      (grepl("M5",anu.sigs$Sigs) | grepl("Res",anu.sigs$Sigs) | grepl("Sens",anu.sigs$Sigs)),], 
           "Overlap_across_signatures_from_Anupriya_sortedM5ResSens.csv", row.names=FALSE)
+
