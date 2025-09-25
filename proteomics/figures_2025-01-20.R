@@ -51,18 +51,18 @@ diffexp.dot <- ggplot(top.diffexp, aes(x=Gene, y="CD14+ vs. CD34+", color=Log2FC
 diffexp.dot
 ggsave(paste0("diffexp_top_",n.top,"_sig_absLog2FC_dotPlot_",Sys.Date(),".pdf"), diffexp.dot, width=4, height=4)
 
-n.top <- 5
+n.top <- 10
 #### 2. GSEA bar plot: Hallmark ####
 # load input
 gsea <- read.csv(synapser::synGet("syn69336665")$path) # was syn64543470 before considering cell type, sort type, patient factors in differential expression
-top.gsea <- gsea %>% slice_max(abs(NES), n = n.top)
-top.gsea$Significance <- "FDR > 0.25"
-top.gsea[top.gsea$FDR_q_value <= 0.25 & top.gsea$p_value <= 0.05,]$Significance <- "FDR <= 0.25"
-top.gsea$Significance <- factor(top.gsea$Significance, levels = c("FDR <= 0.25", "FDR > 0.25"))
-top.gsea$`Gene Set` <- sub("HALLMARK_","",top.gsea$Feature_set)
+gsea$Significance <- "FDR > 0.25"
+gsea[gsea$FDR_q_value <= 0.25 & gsea$p_value <= 0.05,]$Significance <- "FDR <= 0.25"
+gsea$Significance <- factor(gsea$Significance, levels = c("FDR <= 0.25", "FDR > 0.25"))
+gsea$`Gene Set` <- sub("HALLMARK_","",gsea$Feature_set)
+top.gsea <- gsea[gsea$Significance == "FDR <= 0.25",] %>% slice_max(abs(NES), n = n.top)
 
-# vertical bar plot of top 5 sig results
-nSig <- nrow(top.gsea[top.gsea$Significance == "FDR <= 0.25",])
+# vertical bar plot of top sig results
+nSig <- nrow(gsea[gsea$Significance == "FDR <= 0.25",]) # 24
 nTotal <- nrow(gsea)
 title <- paste0("Hallmark Gene Sets (",nSig,"/",nTotal, " Enriched)")
 setOrder <- top.gsea[order(top.gsea$NES),]$`Gene Set`
@@ -73,21 +73,22 @@ gsea.bar <- ggplot(top.gsea, aes(x=`Gene Set`, y=NES, fill=Significance)) + geom
 gsea.bar
 ggsave(paste0("GSEA_Hallmark_top_",n.top,"_sets_barPlot_",Sys.Date(),".pdf"), gsea.bar, width=7, height=7)
 
-title <- paste0("Hallmark Gene Sets\n(",nSig,"/",nTotal, " with adjusted p <= 0.05)")
+title <- paste0("Hallmark Gene Sets\n(",nSig,"/",nTotal, " Enriched)")
 top.gsea$`-Log(FDR)` <- -log(top.gsea$FDR_q_value, base=10)
-top.gsea$`-Log(FDR)` <- -log(1E-4, base=10) # all were 0 FDR
+top.gsea[top.gsea$FDR_q_value==0,]$`-Log(FDR)` <- -log(1E-4, base=10)
 absMaxNES <- max(abs(top.gsea$NES))
 maxLogFDR <- ceiling(max(top.gsea$`-Log(FDR`))
 top.gsea$Significant <- TRUE
 gsea.dot <- ggplot(top.gsea, aes(x=`Gene Set`, y="CD14+ vs. CD34+", color=NES, size=`-Log(FDR)`)) + geom_point()+
   ggplot2::scale_x_discrete(limits = setOrder) +
-  #scale_size(limits=c(1,maxLogFDR), range = c(0.5,7)) +
+  scale_size(limits=c(2,maxLogFDR), range = c(1,5)) +
   scale_color_gradient2(low="blue",high="red", mid="grey", limits=c(-absMaxNES, absMaxNES)) +
-  geom_point(data = subset(top.gsea, Significant), col = "black", stroke = 1.5, shape = 21) +
-  theme(axis.title.x=element_blank(), axis.title.y=element_blank(), axis.text = element_text(size=16)) + 
-  theme_classic(base_size = 12) + ggtitle(title) + coord_flip()
+  geom_point(data = subset(top.gsea, Significant), col = "black", stroke = 1.5, shape = 21) + 
+  theme_classic(base_size = 12) + ggtitle(title) + 
+  theme(axis.title.x=element_blank(), axis.title.y=element_blank(), 
+        axis.text = element_text(size=16)) + coord_flip()
 gsea.dot
-ggsave(paste0("gsea_top_",n.top,"_sig_absNES_",Sys.Date(),".pdf"), gsea.dot, width=4, height=4)
+ggsave(paste0("gsea_top_",n.top,"_sig_absNES_",Sys.Date(),".pdf"), gsea.dot, width=5.5, height=4) # height 2 for n.top = 5, 5 for n.top = 20
 
 gsea <- read.csv(synapser::synGet("syn69336665")$path) # was syn64543470 before considering cell type, sort type, patient factors in differential expression
 top.gsea <- gsea %>% slice_max(NES, n = n.top)
@@ -141,7 +142,7 @@ ggsave(paste0("NFKB_leadingEdge_sig_diffexp_dotPlot_horizontal_",Sys.Date(),".pd
 ggsave(paste0("NFKB_leadingEdge_sig_diffexp_dotPlot_horizontal_taller_",Sys.Date(),".pdf"), diffexp.dot, width=5, height=3)
 #### 2. DMEA bar plot ####
 # load input
-moa.results <- read.csv(synapser::synGet("syn64606616")$path) # was syn64606616 before considering cell type, sort type, patient factors in differential expression
+moa.results <- read.csv(synapser::synGet("syn69928448")$path) # was syn64606616 before considering cell type, sort type, patient factors in differential expression
 top.gsea <- moa.results %>% slice_max(abs(NES), n = n.top)
 top.gsea$Significance <- "FDR > 0.25"
 top.gsea[top.gsea$FDR_q_value <= 0.25 & top.gsea$p_value <= 0.05,]$Significance <- "FDR <= 0.25"
@@ -150,7 +151,7 @@ top.gsea$`Drug Mechanism` <- top.gsea$Drug_set
 
 # vertical bar plot of top 5 results
 nSig <- nrow(top.gsea[top.gsea$Significance == "FDR <= 0.25",])
-nTotal <- nrow(gsea)
+nTotal <- nrow(moa.results)
 title <- paste0("Drug Mechanisms (",nSig,"/",nTotal, " Enriched)")
 setOrder <- top.gsea[order(top.gsea$NES, decreasing = TRUE),]$`Drug Mechanism`
 gsea.bar <- ggplot(top.gsea, aes(x=`Drug Mechanism`, y=NES, fill=Significance)) + geom_col()+
@@ -177,7 +178,7 @@ ggsave(paste0("DMEA_top_",n.top,"_MOAs_forCD14PosSamples_barPlot_",Sys.Date(),".
 
 #### 3. Drug correlation bar plot ####
 sig.moas <- unique(sig.moa.results$Drug_set)
-drug.corr <- read.csv(synapser::synGet("syn64606618")$path)
+drug.corr <- read.csv(synapser::synGet("syn69928450")$path) # was syn64606618  before considering cell type, sort type, patient factors in differential expression
 drug.info <- read.csv("~/OneDrive - PNNL/Documents/PTRC2/BeatAML_single_drug_moa.csv",
                       stringsAsFactors = FALSE, fileEncoding = "latin1")
 drug.info <- drug.info[,c("Drug","moa")]
@@ -216,7 +217,7 @@ drug.corr.wInfo$Drug <- sub(" [(].*", "", drug.corr.wInfo$Drug) # shorten drug n
 drug.corr.wInfo[drug.corr.wInfo$Drug == "NF-kB Activation Inhibitor",]$Drug <- "NFkB Inhibitor"
 
 n.top.list <- c(5, 10, 15)
-n.top.list <- 10
+n.top.list <- c(10, 15, 20)
 for (n.top in n.top.list) {
   temp.dot.df <- drug.corr.wInfo[drug.corr.wInfo$Significant,]
   up.dot.df <- temp.dot.df %>% slice_max(Pearson.est,n=n.top)
@@ -240,9 +241,9 @@ for (n.top in n.top.list) {
   ) + scale_size(limits=c(0,maxLogFDR), range = c(0.5,4)) +
     ggplot2::geom_col() +
     ggplot2::scale_x_discrete(limits = geneOrder) +
-    theme_classic(base_size = 12) + scale_fill_manual(breaks=unique(c(MOAsInTop50,"Other")), 
+    theme_classic(base_size = 12) + scale_fill_manual(breaks=c(MOAsInTop50[MOAsInTop50 != "Other"],"Other"), 
                                         values = c(grDevices::colorRampPalette(
-                                          RColorBrewer::brewer.pal(12, "Set3"))(length(MOAsInTop50)))) +
+                                          RColorBrewer::brewer.pal(12, "Set3"))(length(MOAsInTop50)-1),"grey")) +
     ggplot2::labs(
       #x = i,
       y = "Pearson r",
@@ -270,9 +271,9 @@ for (n.top in n.top.list) {
   ) + scale_size(limits=c(0,maxLogFDR), range = c(0.5,4)) +
     ggplot2::geom_col() +
     ggplot2::scale_x_discrete(limits = geneOrder) +
-    theme_classic(base_size = 16) + scale_fill_manual(breaks=unique(c(MOAsInTop50,"Other")), 
+    theme_classic(base_size = 16) + scale_fill_manual(breaks=c(MOAsInTop50[MOAsInTop50 != "Other"],"Other"), 
                                                       values = c(grDevices::colorRampPalette(
-                                                        RColorBrewer::brewer.pal(12, "Set3"))(length(MOAsInTop50)))) +
+                                                        RColorBrewer::brewer.pal(12, "Set3"))(length(MOAsInTop50)-1),"grey")) +
     ggplot2::labs(
       #x = i,
       y = "Pearson r",
