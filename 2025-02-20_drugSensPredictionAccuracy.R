@@ -1321,6 +1321,7 @@ bcl2.mdm.res.dn <- c("CASP3","CASP6","BCL2","CDKN1A","PMAIP1","BBC3","BMF","TP53
 # https://pmc.ncbi.nlm.nih.gov/articles/PMC9131911/#sec2
 ven.res <- c("CD11B","CD16","CD56","CD64","HLADR") # these are protein names - check for gene symbols
 ven.res <- c("ITGAM","FCGR3A", "FCGR3B","NCAM1","FCGR1A","HLA-DRB1") # gene symbols
+ven.res <- c("ITGAM","FCGR3A", "FCGR1A","HLA-DRB1") # FCGR3B and NCAM1 are not detected in our proteomics
 ven.sens <- c("CD117") # protein name
 ven.sens <- c("KIT") # gene symbol
 dora.sens <- c("HLADR") # protein name
@@ -1329,12 +1330,12 @@ dora.sens <- c("HLA-DRB1") # gene symbol
 # https://pmc.ncbi.nlm.nih.gov/articles/PMC10618724/#_ad93_
 av.res <- c("CD14", "RAS") # which RAS?
 av.sens <- c("CD117","IDH1","NPM1") # protein name
-ven.sens <- c("KIT", "IDH1","NPM1") # gene symbol
+av.sens <- c("KIT", "IDH1","NPM1") # gene symbol
 #ven.rux.sig <- readxl::read_excel("/Users/gara093/Downloads/bcd-23-0014_table_s7_suppst7.xlsx")
 
 # https://aacrjournals.org/cancerdiscovery/article/13/6/1408/726964/Combinatorial-BCL2-Family-Expression-in-Acute
 m5.dn <- c("CD117") # protein name
-ven.sens <- c("KIT") # gene symbol
+m5.dn <- c("KIT") # gene symbol
 m5.up <- c("CD11b", "CD68","CD64") # protein name
 m5.up <- c("ITGAM", "CD68", "FCGR1A") # gene symbol
 
