@@ -90,6 +90,40 @@ gsea.dot <- ggplot(top.gsea, aes(x=`Gene Set`, y="CD14+ vs. CD34+", color=NES, s
 gsea.dot
 ggsave(paste0("gsea_top_",n.top,"_sig_absNES_",Sys.Date(),".pdf"), gsea.dot, width=5.5, height=4) # height 2 for n.top = 5, 5 for n.top = 20
 
+title <- paste0("Hallmark Gene Sets\n(",nSig,"/",nTotal, " Enriched)")
+gsea$`-Log(FDR)` <- -log(gsea$FDR_q_value, base=10)
+gsea[gsea$FDR_q_value==0,]$`-Log(FDR)` <- -log(1E-4, base=10)
+absMaxNES <- max(abs(gsea$NES))
+maxLogFDR <- ceiling(max(gsea$`-Log(FDR`))
+gsea$Significant <- FALSE
+gsea[gsea$FDR_q_value <= 0.25 & gsea$p_value <= 0.05,]$Significant <- TRUE
+sig.gsea <- gsea[gsea$Significant,]
+setOrder <- sig.gsea[order(sig.gsea$NES),]$`Gene Set`
+gsea.dot <- ggplot(sig.gsea, aes(x=`Gene Set`, y="CD14+ vs. CD34+", color=NES, size=`-Log(FDR)`)) + geom_point()+
+  ggplot2::scale_x_discrete(limits = setOrder) +
+  scale_size(limits=c(0.75,maxLogFDR), range = c(0.5,5)) +
+  scale_color_gradient2(low="blue",high="red", mid="grey", limits=c(-absMaxNES, absMaxNES)) +
+  geom_point(data = sig.gsea, col = "black", stroke = 1.5, shape = 21) + 
+  theme_classic(base_size = 12) + ggtitle(title) + 
+  theme(axis.title.x=element_blank(), axis.title.y=element_blank(), 
+        axis.text = element_text(size=16)) + coord_flip()
+gsea.dot
+ggsave(paste0("gsea_sig_",Sys.Date(),".pdf"), gsea.dot, width=5.5, height=6) # height 2 for n.top = 5, 5 for n.top = 20
+
+
+setOrder <- gsea[order(gsea$NES),]$`Gene Set`
+gsea.dot <- ggplot(gsea, aes(x=`Gene Set`, y="CD14+ vs. CD34+", color=NES, size=`-Log(FDR)`)) + geom_point()+
+  ggplot2::scale_x_discrete(limits = setOrder) +
+  scale_size(limits=c(0,maxLogFDR), range = c(0.5,5)) +
+  scale_color_gradient2(low="blue",high="red", mid="grey", limits=c(-absMaxNES, absMaxNES)) +
+  geom_point(data = subset(gsea, Significant), col = "black", stroke = 1.5, shape = 21) + 
+  theme_classic(base_size = 12) + ggtitle(title) + 
+  theme(axis.title.x=element_blank(), axis.title.y=element_blank(), 
+        axis.text = element_text(size=16)) + coord_flip()
+gsea.dot
+ggsave(paste0("gsea_",Sys.Date(),".pdf"), gsea.dot, width=6.25, height=12) # height 2 for n.top = 5, 5 for n.top = 20
+
+
 gsea <- read.csv(synapser::synGet("syn69336665")$path) # was syn64543470 before considering cell type, sort type, patient factors in differential expression
 top.gsea <- gsea %>% slice_max(NES, n = n.top)
 top.gsea$`Gene Set` <- sub("HALLMARK_","",top.gsea$Feature_set)
