@@ -1303,6 +1303,366 @@ fab.meta <- na.omit(fab.meta[fab.meta$labId %in% sorted.patients,]) # 9
 # 3 are M1, 3 are M2, 1 is M4, 2 are M5
 
 npm1.meta <- merge(patient.key, patient.meta, by=key.cols)
+write.csv(npm1.meta, "Table_S1_merged.csv", row.names=FALSE)
+beat.meta <- npm1.meta[!(npm1.meta$labId %in% sorted.patients),]
+write.csv(beat.meta, "Table_S1_notSorted.csv", row.names=FALSE)
+beat.meta.omics <- beat.meta[beat.meta$labId %in% unique(c(BeatAML$rna$Barcode.ID, BeatAML$global$Barcode.ID)),]
+beat.meta.overlap <- beat.meta[beat.meta$labId %in% BeatAML$drug[!is.na(BeatAML$drug$Venetoclax),]$Barcode.ID,] # 106
+write.csv(beat.meta.overlap, "Table_S1_notSorted_rnaProtVen.csv", row.names=FALSE)
+
+# get numeric metadata
+num.meta.overlap <- dplyr::distinct(beat.meta.overlap[,c("labId", num.cols)])
+num.meta.overlap[,c("centerID","dbgap_subject_id")] <- NULL
+write.csv(num.meta.overlap,"Table_S1_notSorted_rnaProtVen_numeric.csv", row.names=FALSE)
+
+# correlations with pt corr for Sorted_25
+corr.input <- pt.r[,c(1,3)]
+colnames(corr.input)[1] <- "labId"
+corr.input <- merge(corr.input, num.meta.overlap, by="labId")
+write.csv(corr.input,"Table_S1_notSorted_rnaProtVen_numeric_corrInput.csv", row.names=FALSE)
+sorted.meta.corr <- DMEA::rank_corr(corr.input, variable="Metadata", value="Metadata")
+# No correlations met the FDR cut-off to produce scatter plots
+write.csv(sorted.meta.corr$result,"Table_S1_notSorted_rnaProtVen_numeric_corr.csv", row.names=FALSE)
+
+corr.input <- ven.corr[ven.corr$Signature=="Sorted: 25 proteins",c("Barcode.ID","delta_AUC_squared")]
+colnames(corr.input)[1] <- "labId"
+corr.input <- merge(corr.input, num.meta.overlap, by="labId")
+write.csv(corr.input,"Table_S1_notSorted_rnaProtVen_numeric_corrInput_venSSE.csv", row.names=FALSE)
+sorted.meta.corr <- DMEA::rank_corr(corr.input, variable="Metadata", value="Metadata", plots=FALSE)
+# No correlations met the FDR cut-off to produce scatter plots
+write.csv(sorted.meta.corr$result,"Table_S1_notSorted_rnaProtVen_numeric_corr_venSSE.csv", row.names=FALSE)
+# better prediction with higher allelic ratio (Pearson r=0.3461, p=3.665E-4, q=1.026E-2)
+
+factor.meta.overlap <- data.frame(labId=beat.meta.overlap$labId)
+factor.meta.overlap[,c("Male","White","Hispanic","CEBPA_Biallelic","Relapse",
+                       "Denovo","Transformed","cumulativeChemo",
+                       "priorMalignancyNonMyeloid",
+                       "priorMalignancyRadiationTx","priorMDS",
+                       "priorMDSMoreThanTwoMths","priorMDSMPN",
+                       "priorMDSMPNMoreThanTwoMths","priorMPN",
+                       "priorMPNMoreThanTwoMths","BoneMarrow",
+                       "CRWithInductionChemo")] <- NA
+
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$reportedRace=="White",]$labId,]$White <- TRUE
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$reportedRace!="White" &
+                                          beat.meta.overlap$reportedRace!="Unknown",]$labId,]$White <- FALSE
+
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$consensus_sex=="Male",]$labId,]$Male <- TRUE
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$consensus_sex!="Male",]$labId,]$Male <- FALSE
+
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$reportedEthnicity=="HISPANIC",]$labId,]$Hispanic <- TRUE
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$reportedEthnicity=="NON-HISPANIC",]$labId,]$Hispanic <- FALSE
+
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$CEBPA_Biallelic=="bi",]$labId,]$CEBPA_Biallelic <- TRUE
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$CEBPA_Biallelic=="mono",]$labId,]$CEBPA_Biallelic <- FALSE
+
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$isRelapse=="TRUE",]$labId,]$Relapse <- TRUE
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$isRelapse=="FALSE",]$labId,]$Relapse <- FALSE
+
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$isDenovo=="TRUE",]$labId,]$Denovo <- TRUE
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$isDenovo=="FALSE",]$labId,]$Denovo <- FALSE
+
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$isTransformed=="TRUE",]$labId,]$Transformed <- TRUE
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$isTransformed=="FALSE",]$labId,]$Transformed <- FALSE
+
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$specimenType=="Bone Marrow Aspirate",]$labId,]$BoneMarrow <- TRUE
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$specimenType!="Bone Marrow Aspirate",]$labId,]$BoneMarrow <- FALSE
+
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[grepl("Complete Response",beat.meta.overlap$responseToInductionTx) &
+                                          beat.meta.overlap$typeInductionTx=="Standard Chemotherapy",]$labId,]$CRWithInductionChemo <- TRUE
+factor.meta.overlap[factor.meta.overlap$labId %in% 
+                      beat.meta.overlap[beat.meta.overlap$responseToInductionTx=="Refractory" &
+                                          beat.meta.overlap$typeInductionTx=="Standard Chemotherapy",]$labId,]$CRWithInductionChemo <- FALSE
+
+
+yn.factors <- c("cumulativeChemo","priorMalignancyRadiationTx","priorMDS",
+                "priorMDSMoreThanTwoMths","priorMDSMPN","priorMalignancyNonMyeloid",
+                "priorMDSMPNMoreThanTwoMths","priorMPN","priorMPNMoreThanTwoMths")
+for (i in yn.factors) {
+  factor.meta.overlap[factor.meta.overlap$labId %in% 
+                        beat.meta.overlap[beat.meta.overlap[,i]=="y",]$labId,i] <- TRUE
+  factor.meta.overlap[factor.meta.overlap$labId %in% 
+                        beat.meta.overlap[beat.meta.overlap[,i]=="n",]$labId,i] <- FALSE
+}
+
+pn.factors <- c("FLT3-ITD","NPM1")
+for (i in pn.factors) {
+  factor.meta.overlap[factor.meta.overlap$labId %in% 
+                        beat.meta.overlap[beat.meta.overlap[,i]=="positive",]$labId,i] <- TRUE
+  factor.meta.overlap[factor.meta.overlap$labId %in% 
+                        beat.meta.overlap[beat.meta.overlap[,i]=="negative",]$labId,i] <- FALSE
+}
+
+other.factors <- unique(beat.meta.overlap$specificDxAtAcquisition[duplicated(beat.meta.overlap$specificDxAtAcquisition)])
+other.factors <- other.factors[other.factors!="Unknown"]
+factor.meta.overlap[,paste0("specificDxAtAcquisition: ",other.factors)] <- NA
+for (i in other.factors) {
+  factor.meta.overlap[factor.meta.overlap$labId %in% 
+                        beat.meta.overlap[beat.meta.overlap$specificDxAtAcquisition==i,]$labId,
+                      paste0("specificDxAtAcquisition: ",i)] <- TRUE
+  factor.meta.overlap[factor.meta.overlap$labId %in% 
+                        beat.meta.overlap[beat.meta.overlap$specificDxAtAcquisition!=i &
+                                            beat.meta.overlap$specificDxAtAcquisition!="Unknown",]$labId,
+                      paste0("specificDxAtAcquisition: ",i)] <- FALSE
+}
+
+# later look at ELN2017 column
+other.factors <- unique(beat.meta.overlap$ELN2017[duplicated(beat.meta.overlap$ELN2017)])
+factor.meta.overlap[,paste0("ELN2017: ", other.factors)] <- NA
+for (i in other.factors) {
+  factor.meta.overlap[factor.meta.overlap$labId %in% 
+                        beat.meta.overlap[beat.meta.overlap$ELN2017==i,]$labId,
+                      paste0("ELN2017: ", i)] <- TRUE
+  factor.meta.overlap[factor.meta.overlap$labId %in% 
+                        beat.meta.overlap[beat.meta.overlap$ELN2017!=i,]$labId,
+                      paste0("ELN2017: ", i)] <- FALSE
+}
+
+# later look at fabBlastMorphology column
+other.factors <- na.omit(unique(beat.meta.overlap$fabBlastMorphology[duplicated(beat.meta.overlap$fabBlastMorphology)]))
+factor.meta.overlap[,paste0("fabBlastMorphology: ", other.factors)] <- NA
+for (i in other.factors) {
+  factor.meta.overlap[factor.meta.overlap$labId %in% 
+                        beat.meta.overlap[beat.meta.overlap$fabBlastMorphology==i,]$labId,
+                      paste0("fabBlastMorphology: ",i)] <- TRUE
+  factor.meta.overlap[factor.meta.overlap$labId %in% 
+                        beat.meta.overlap[beat.meta.overlap$fabBlastMorphology!=i & 
+                                            !is.na(beat.meta.overlap$fabBlastMorphology),]$labId,
+                      paste0("fabBlastMorphology: ",i)] <- FALSE
+}
+
+# later look at diseaseStageAtSpecimenCollection column
+other.factors <- unique(beat.meta.overlap$diseaseStageAtSpecimenCollection[duplicated(beat.meta.overlap$diseaseStageAtSpecimenCollection)])
+other.factors <- other.factors[other.factors != "Unknown"]
+factor.meta.overlap[,paste0("diseaseStageAtSpecimenCollection: ",other.factors)] <- NA
+for (i in other.factors) {
+  factor.meta.overlap[factor.meta.overlap$labId %in% 
+                        beat.meta.overlap[beat.meta.overlap$diseaseStageAtSpecimenCollection==i,]$labId,
+                      paste0("diseaseStageAtSpecimenCollection: ",i)] <- TRUE
+  factor.meta.overlap[factor.meta.overlap$labId %in% 
+                        beat.meta.overlap[beat.meta.overlap$diseaseStageAtSpecimenCollection!=i & 
+                                            !is.na(beat.meta.overlap$diseaseStageAtSpecimenCollection) &
+                                            beat.meta.overlap$diseaseStageAtSpecimenCollection!="Unknown",]$labId,
+                      paste0("diseaseStageAtSpecimenCollection: ",i)] <- FALSE
+}
+reduced.meta <- meta.df[,c("Barcode.ID","InitialAMLDiagnosis","PostChemotherapy")] # FLT3-ITD is already included
+colnames(reduced.meta)[1] <- "labId"
+tf.meta.overlap <- merge(factor.meta.overlap, reduced.meta, by="labId")
+write.csv(tf.meta.overlap,"Table_S1_notSorted_rnaProtVen_factors.csv", row.names=FALSE)
+
+diffDx <- beat.meta.overlap[beat.meta.overlap$dxAtInclusion!=beat.meta.overlap$dxAtSpecimenAcquisition,]
+# only sample where dxAtInclusion != dxAtSpecimenAcquisition: labId == "18-00149" dxAtInclusion == "MYELODYSPLASTIC SYNDROMES" and dxAtSpecimenAcquisition == "ACUTE MYELOID LEUKAEMIA (AML) AND RELATED PRECURSOR NEOPLASMS"
+
+# t-tests
+tf.test.input <- pt.r[,c(1,3)]
+colnames(tf.test.input)[1] <- "labId"
+tf.test.input <- merge(tf.test.input, tf.meta.overlap, by="labId")
+write.csv(tf.test.input,"Table_S1_notSorted_rnaProtVen_factors_tTestInput.csv", row.names=FALSE)
+
+metaFactor <- colnames(tf.test.input)[3:ncol(tf.test.input)]
+tf.meta.test <- data.frame(metaFactor,meanTrue=NA,meanFalse=NA,medianTrue=NA,
+                           medianFalse=NA,t=NA,p=NA,pTrueLess=NA,pTrueGreater=NA,
+                           nTrue=NA,nFalse=NA)
+for (i in metaFactor) {
+  tf.meta.test[tf.meta.test$metaFactor==i,]$meanTrue <- mean(tf.test.input[tf.test.input[,i],2], na.rm = TRUE)
+  tf.meta.test[tf.meta.test$metaFactor==i,]$meanFalse <- mean(tf.test.input[!tf.test.input[,i],2], na.rm = TRUE)
+  
+  tf.meta.test[tf.meta.test$metaFactor==i,]$medianTrue <- median(tf.test.input[tf.test.input[,i],2], na.rm = TRUE)
+  tf.meta.test[tf.meta.test$metaFactor==i,]$medianFalse <- median(tf.test.input[!tf.test.input[,i],2], na.rm = TRUE)
+  
+  tf.meta.test[tf.meta.test$metaFactor==i,]$nTrue <- length(na.omit(tf.test.input[tf.test.input[,i],2]))
+  tf.meta.test[tf.meta.test$metaFactor==i,]$nFalse <- length(na.omit(tf.test.input[!tf.test.input[,i],2]))
+  
+  tf.meta.test[tf.meta.test$metaFactor==i,]$p <- t.test(na.omit(tf.test.input[tf.test.input[,i],2]),
+                      na.omit(tf.test.input[!tf.test.input[,i],2]))$p.value
+  tf.meta.test[tf.meta.test$metaFactor==i,]$t <- t.test(na.omit(tf.test.input[tf.test.input[,i],2]),
+                                                        na.omit(tf.test.input[!tf.test.input[,i],2]))$statistic
+  tf.meta.test[tf.meta.test$metaFactor==i,]$pTrueLess <- t.test(na.omit(tf.test.input[tf.test.input[,i],2]),
+                                                                na.omit(tf.test.input[!tf.test.input[,i],2]),
+                      alternative = "less")$p.value
+  tf.meta.test[tf.meta.test$metaFactor==i,]$pTrueGreater <- t.test(na.omit(tf.test.input[tf.test.input[,i],2]),
+                                                                 na.omit(tf.test.input[!tf.test.input[,i],2]),
+                      alternative = "greater")$p.value
+} 
+tf.meta.test$q <- qvalue::qvalue(tf.meta.test$p, pi0=1)$qvalues
+write.csv(tf.meta.test,"Table_S1_notSorted_rnaProtVen_factors_tTest.csv", row.names=FALSE)
+# M2, M4, AML with inv(16)(p13.1q22) or t(16;16)(p13.1;q22); CBFB-MYH11 are better predicted
+# M1 is worse predicted
+
+# bar plots: correlations, -logP; box plots for significantly differently predicted t-tests
+dot.df <- sorted.meta.corr$result
+dot.df$sig <- FALSE
+if (any(dot.df$Pearson.q<0.05)) {
+  dot.df[dot.df$Pearson.q<0.05,]$sig <- TRUE
+}
+cor.bar <- ggplot2::ggplot(dot.df, aes(x=Pearson.est, y=reorder(Metadata,Pearson.est), fill=sig)) +
+  geom_bar(stat="identity") + scale_fill_manual(values=c("black","grey"), breaks=c(TRUE, FALSE), labels=c("q < 0.05","q > 0.05")) +
+  theme_classic() + labs(x="Pearson r", fill="Significance") + theme(axis.title.y=element_blank())
+cor.bar
+ggsave("Table_S1_notSorted_rnaProtVen_numeric_corr_barPlot.pdf", cor.bar, width=5, height=5)
+ggsave("Table_S1_notSorted_rnaProtVen_numeric_corr_barPlot_wh5.5.pdf", cor.bar, width=5.5, height=5.5)
+ggsave("Table_S1_notSorted_rnaProtVen_numeric_corr_barPlot_w7.5h6.5.pdf", cor.bar, width=7.5, height=6.5)
+
+dot.df <- tf.meta.test
+dot.df$sig <- FALSE
+if (any(dot.df$q<0.05)) {
+  dot.df[dot.df$q<0.05,]$sig <- TRUE # only one is specificDxAtAcquisition: AML with inv(16)(p13.1q22) or t(16;16)(p13.1;q22); CBFB-MYH11 with 2.939324e-05
+}
+# test.bar <- ggplot2::ggplot(dot.df, aes(x=-log10(p), y=reorder(metaFactor,-p), fill=sig)) +
+#   geom_bar(stat="identity") + scale_fill_manual(values=c("black","grey"), breaks=c(TRUE, FALSE)) +
+#   theme_classic() + labs(x="-Log(P-value)") + theme(axis.title.y=element_blank())
+test.bar <- ggplot2::ggplot(dot.df, aes(x=t, y=reorder(metaFactor,t), fill=sig)) +
+  geom_bar(stat="identity") + scale_fill_manual(values=c("black","grey"), breaks=c(TRUE, FALSE), labels=c("q < 0.05","q > 0.05")) +
+  theme_classic() + labs(x="t-score", fill="Significance") + theme(axis.title.y=element_blank())
+test.bar
+ggsave("Table_S1_notSorted_rnaProtVen_factor_tTest_barPlot.pdf", test.bar, width=7.5, height=6.5)
+
+dot.df <- pt.r[,c(1,3)]
+colnames(dot.df)[1] <- "labId"
+dot.df <- merge(dot.df, beat.meta.overlap[,c("labId","specificDxAtAcquisition")], by="labId")
+test.box <- ggplot2::ggplot(dot.df[dot.df$specificDxAtAcquisition!="Unknown",], 
+                            aes(x=reorder(specificDxAtAcquisition,
+                                          -`Sorted: 25 proteins`),
+                                        y=`Sorted: 25 proteins`, 
+                                        color=specificDxAtAcquisition)) +
+  geom_violin(alpha=0) + geom_point() + geom_boxplot(width=0.2, alpha = 0) + 
+  theme_classic() + labs(y="Pearson r", x="specificDxAtAcquisition") + 
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1), 
+        legend.position="none", axis.title.x=element_blank())
+test.box
+ggsave("Table_S1_notSorted_rnaProtVen_factor_tTest_boxPlot_specificDxAtAcquisition_noUnknown.pdf", test.box, width=5, height=5)
+
+#### use ven SSE ####
+tf.test.input <- ven.corr[ven.corr$Signature=="Sorted: 25 proteins",c("Barcode.ID","delta_AUC_squared")]
+colnames(tf.test.input)[1] <- "labId"
+tf.test.input <- merge(tf.test.input, tf.meta.overlap, by="labId")
+write.csv(tf.test.input,"Table_S1_notSorted_rnaProtVen_factors_tTestInput_venSSE.csv", row.names=FALSE)
+
+metaFactor <- colnames(tf.test.input)[3:ncol(tf.test.input)]
+tf.meta.test <- data.frame(metaFactor,meanTrue=NA,meanFalse=NA,medianTrue=NA,
+                           medianFalse=NA,t=NA,p=NA,pTrueLess=NA,pTrueGreater=NA,
+                           nTrue=NA,nFalse=NA)
+for (i in metaFactor) {
+  tf.meta.test[tf.meta.test$metaFactor==i,]$meanTrue <- mean(tf.test.input[tf.test.input[,i],2], na.rm = TRUE)
+  tf.meta.test[tf.meta.test$metaFactor==i,]$meanFalse <- mean(tf.test.input[!tf.test.input[,i],2], na.rm = TRUE)
+  
+  tf.meta.test[tf.meta.test$metaFactor==i,]$medianTrue <- median(tf.test.input[tf.test.input[,i],2], na.rm = TRUE)
+  tf.meta.test[tf.meta.test$metaFactor==i,]$medianFalse <- median(tf.test.input[!tf.test.input[,i],2], na.rm = TRUE)
+  
+  tf.meta.test[tf.meta.test$metaFactor==i,]$nTrue <- length(na.omit(tf.test.input[tf.test.input[,i],2]))
+  tf.meta.test[tf.meta.test$metaFactor==i,]$nFalse <- length(na.omit(tf.test.input[!tf.test.input[,i],2]))
+  
+  tf.meta.test[tf.meta.test$metaFactor==i,]$p <- t.test(na.omit(tf.test.input[tf.test.input[,i],2]),
+                                                        na.omit(tf.test.input[!tf.test.input[,i],2]))$p.value
+  tf.meta.test[tf.meta.test$metaFactor==i,]$t <- t.test(na.omit(tf.test.input[tf.test.input[,i],2]),
+                                                        na.omit(tf.test.input[!tf.test.input[,i],2]))$statistic
+  tf.meta.test[tf.meta.test$metaFactor==i,]$pTrueLess <- t.test(na.omit(tf.test.input[tf.test.input[,i],2]),
+                                                                na.omit(tf.test.input[!tf.test.input[,i],2]),
+                                                                alternative = "less")$p.value
+  tf.meta.test[tf.meta.test$metaFactor==i,]$pTrueGreater <- t.test(na.omit(tf.test.input[tf.test.input[,i],2]),
+                                                                   na.omit(tf.test.input[!tf.test.input[,i],2]),
+                                                                   alternative = "greater")$p.value
+} 
+tf.meta.test$q <- qvalue::qvalue(tf.meta.test$p, pi0=1)$qvalues
+write.csv(tf.meta.test,"Table_S1_notSorted_rnaProtVen_factors_tTest_venSSE.csv", row.names=FALSE)
+
+# bar plots: correlations, -logP; box plots for significantly differently predicted t-tests
+dot.df <- sorted.meta.corr$result
+dot.df$sig <- FALSE
+if (any(dot.df$Pearson.q<0.05)) {
+  dot.df[dot.df$Pearson.q<0.05,]$sig <- TRUE
+}
+cor.bar <- ggplot2::ggplot(dot.df, aes(x=Pearson.est, y=reorder(Metadata,Pearson.est), fill=sig)) +
+  geom_bar(stat="identity") + scale_fill_manual(values=c("black","grey"), breaks=c(TRUE, FALSE), labels=c("q < 0.05","q > 0.05")) +
+  theme_classic() + labs(x="Pearson r", fill="Significance") + theme(axis.title.y=element_blank())
+cor.bar
+ggsave("Table_S1_notSorted_rnaProtVen_numeric_corr_barPlot_venSSE.pdf", cor.bar, width=5, height=5)
+ggsave("Table_S1_notSorted_rnaProtVen_numeric_corr_barPlot_wh5.5_venSSE.pdf", cor.bar, width=5.5, height=5.5)
+ggsave("Table_S1_notSorted_rnaProtVen_numeric_corr_barPlot_w7.5h6.5_venSSE.pdf", cor.bar, width=7.5, height=6.5)
+
+dot.df <- sorted.meta.corr$result
+dot.df$sig <- FALSE
+if (any(dot.df$Spearman.q<0.05)) {
+  dot.df[dot.df$Spearman.q<0.05,]$sig <- TRUE
+}
+cor.bar <- ggplot2::ggplot(dot.df, aes(x=Spearman.est, y=reorder(Metadata,Spearman.est), fill=sig)) +
+  geom_bar(stat="identity") + scale_fill_manual(values=c("black","grey"), breaks=c(TRUE, FALSE), labels=c("q < 0.05","q > 0.05")) +
+  theme_classic() + labs(x="Spearman rho", fill="Significance") + theme(axis.title.y=element_blank())
+cor.bar
+ggsave("Table_S1_notSorted_rnaProtVen_numeric_corr_barPlot_venSSE_spearman.pdf", cor.bar, width=5, height=5)
+ggsave("Table_S1_notSorted_rnaProtVen_numeric_corr_barPlot_wh5.5_venSSE_spearman.pdf", cor.bar, width=5.5, height=5.5)
+ggsave("Table_S1_notSorted_rnaProtVen_numeric_corr_barPlot_w7.5h6.5_venSSE_spearman.pdf", cor.bar, width=7.5, height=6.5)
+
+
+dot.df <- tf.meta.test
+dot.df$sig <- FALSE
+if (any(dot.df$q<0.05)) {
+  dot.df[dot.df$q<0.05,]$sig <- TRUE # only one is specificDxAtAcquisition: AML with inv(16)(p13.1q22) or t(16;16)(p13.1;q22); CBFB-MYH11 with 2.939324e-05
+}
+# test.bar <- ggplot2::ggplot(dot.df, aes(x=-log10(p), y=reorder(metaFactor,-p), fill=sig)) +
+#   geom_bar(stat="identity") + scale_fill_manual(values=c("black","grey"), breaks=c(TRUE, FALSE)) +
+#   theme_classic() + labs(x="-Log(P-value)") + theme(axis.title.y=element_blank())
+test.bar <- ggplot2::ggplot(dot.df, aes(x=t, y=reorder(metaFactor,t), fill=sig)) +
+  geom_bar(stat="identity") + scale_fill_manual(values=c("black","grey"), breaks=c(TRUE, FALSE), labels=c("q < 0.05","q > 0.05")) +
+  theme_classic() + labs(x="t-score", fill="Significance") + theme(axis.title.y=element_blank())
+test.bar
+ggsave("Table_S1_notSorted_rnaProtVen_factor_tTest_barPlot_venSSE.pdf", test.bar, width=7.5, height=6.5)
+
+dot.df <- corr.input[,c("labId","delta_AUC_squared","allelic_ratio")]
+Pearson.est <- cor.test(dot.df$delta_AUC_squared, dot.df$allelic_ratio)$estimate
+Pearson.p <- cor.test(dot.df$delta_AUC_squared, dot.df$allelic_ratio)$p.value
+stats_pearson <- substitute(
+  r == est * "," ~ ~"p" ~ "=" ~ p,
+  list(
+    est = as.numeric(format(Pearson.est, digits = 3)),
+    p = format(Pearson.p, digits = 3)
+  )
+)
+Spearman.est <- cor.test(dot.df$delta_AUC_squared, dot.df$allelic_ratio, method="spearman")$estimate
+Spearman.p <- cor.test(dot.df$delta_AUC_squared, dot.df$allelic_ratio, method="spearman")$p.value
+stats_spearman <- substitute(
+  rho == est * "," ~ ~"p" ~ "=" ~ p,
+  list(
+    est = as.numeric(format(Spearman.est, digits = 3)),
+    p = format(Spearman.p, digits = 3)
+  )
+)
+scatter.plot <- ggplot2::ggplot(data = dot.df,
+                aes(x = allelic_ratio, y = delta_AUC_squared)) +
+  ggplot2::geom_point() +
+  ggplot2::labs(x = "Allelic Ratio", y = "Prediction Error") +
+  ggplot2::geom_smooth(method = "lm", size = 1.5,
+                       linetype = "dashed", color = "blue",
+                       se = FALSE, na.rm = TRUE) +
+  ggplot2::geom_text(
+    x = 15, y = 20000, vjust = "inward", hjust = "inward",
+    colour = "blue", parse = TRUE,
+    label = as.character(as.expression(stats_pearson))) + 
+  ggplot2::geom_text(
+    x = 15, y = 18000, vjust = "inward", hjust = "inward",
+    colour = "blue", parse = TRUE,
+    label = as.character(as.expression(stats_spearman))) + theme_classic()
+scatter.plot
+ggsave("Table_S1_notSorted_rnaProtVen_factor_corr_scatterPlot_venSSE.pdf", scatter.plot, width=3, height=3)
+
+
 npm1.meta <- npm1.meta[npm1.meta$labId %in% sorted.patients,] # 9 patients
 write.csv(npm1.meta, "Table_S1_sortedDIApatients.csv", row.names=FALSE)
 
