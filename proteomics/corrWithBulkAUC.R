@@ -1,5 +1,6 @@
 # correlations between sorted expression and bulk AUC
 library(synapser);library(ggplot2);library(DMEA)
+library(plyr);library(dplyr)
 setwd("~/Library/CloudStorage/OneDrive-PNNL/Documents/GitHub/Exp24_patient_cells/proteomics/analysis")
 synapser::synLogin()
 base.path <- getwd()
@@ -173,6 +174,107 @@ for (i in names(inputs)) {
            temp.gsea$all.results[[j]]$dot.plot, width=5, height=5)
     ggsave(paste0(j,"AUC_gseaDotSD_WithSortedProteomicsDIA_",i,".pdf"),
            temp.gsea$all.results[[j]]$dot.sd, width=5, height=5)
+  }
+}
+
+
+#### redo plots ####
+setwd(file.path(base.path,"correlations"))
+dir.create("plots")
+setwd("plots")
+conditions <- c("Overall", "Bead", "Flow", "CD14", "CD14_Bead", "CD14_Flow", 
+                "CD34", "CD34_Bead", "CD34_Flow", "MSC_Flow")
+n.vals <- c(10,12,15)
+for (i in conditions) {
+  # get correlation results
+  setwd(file.path(base.path,"correlations"))
+  ven.prot.corr <- read.csv(paste0("venAUC_correlationsWithSortedProteomicsDIA_",i,".csv"))
+  av.prot.corr <- read.csv(paste0("azaVenAUC_correlationsWithSortedProteomicsDIA_",i,".csv"))
+  gsea.inputs <- list("Ven" = ven.prot.corr,
+                      "AzaVen" = av.prot.corr)
+  
+  # bar plots
+  for (j in names(gsea.inputs)) {
+    setwd(file.path(base.path,"correlations","plots"))
+    dir.create(j)
+    setwd(j)
+    temp.df <- gsea.inputs[[j]]
+    n.total <- nrow(temp.df)
+    temp.df <- temp.df[temp.df$Spearman.q<0.05,c("Protein","Spearman.est")]
+    n.sig <- nrow(temp.df)
+    if (nrow(temp.df)>0) {
+      temp.df$Direction <- "Positive"
+      if(any(temp.df$Spearman.est<0)){temp.df[temp.df$Spearman.est<0,]$Direction <- "Negative"}
+      for (n in n.vals) {
+        temp.df <- temp.df %>% slice_max(abs(Spearman.est), n=n)
+        bar <- ggplot2::ggplot(temp.df, 
+                               aes(x=Spearman.est, 
+                                   y=reorder(Protein, Spearman.est), 
+                                   fill = Direction)) + 
+          geom_bar(stat='identity') + ggplot2::theme(
+            panel.border = element_rect(colour = "black", fill = NA, linewidth = 1),
+            axis.line = element_line(colour = "black", linewidth = 0.65),
+            legend.text = element_text(size = 20),
+            axis.text = element_text(size = 20),
+            axis.title = element_text(size = 26, face = "bold"),
+            panel.background = element_rect(
+              fill = "white", colour = "white", linewidth = 0.5,
+              linetype = "solid", color = "black"
+            ), text = element_text(size = 20),
+            legend.position = "bottom", legend.key = element_blank()
+          ) + ggplot2::xlab("Spearman Correlation") + 
+          theme(axis.title.y=element_blank()) + 
+          ggtitle(paste(n.sig,"/", n.total, "proteins correlated")) +
+          ggplot2::scale_fill_manual(
+            values = c("red", "blue"), name = "Direction",
+            breaks = c("Positive","Negative")
+          ) 
+        ggsave(paste0(j,"AUC_correlationsWithSortedProteomicsDIA_",i,"_top",n,"Sig_barPlot.pdf"),
+               bar, width=7, height=7)
+      }
+    }
+  }
+  
+  # get GSEA results
+  setwd(file.path(base.path,"correlations","GSEA"))
+  ven.gsea <- read.csv(paste0("Ven/VenAUC_gsea_WithSortedProteomicsDIA_",i,".csv"))
+  av.gsea <- read.csv(paste0("AzaVen/AzaVenAUC_gsea_WithSortedProteomicsDIA_",i,".csv"))
+  gsea.list <- list("Ven" = ven.gsea,
+                      "AzaVen" = av.gsea)
+  
+  # dot plots
+  for (j in names(gsea.list)) {
+    setwd(file.path(base.path,"correlations","plots"))
+    dir.create(j)
+    setwd(j)
+    bar.data <- gsea.list[[j]]
+    n.total <- nrow(gsea.list[[j]])
+    bar.data <- bar.data[bar.data$p_value<0.05 & bar.data$FDR_q_value<0.25,
+                         c("Feature_set","NES","FDR_q_value")]
+    n.sig <- nrow(bar.data)
+    if (nrow(bar.data)>0) {
+      for (n in n.vals) {
+        bar.data <- bar.data %>% slice_max(abs(NES),n=n)
+        bar.data$Gene_set <- sub("HALLMARK_","",bar.data$Feature_set)
+        bar.data$minusLogFDR <- 4
+        if (any(bar.data$FDR_q_value!=0)) {
+          bar.data[bar.data$FDR_q_value!=0,]$minusLogFDR <- 
+            -log10(bar.data[bar.data$FDR_q_value!=0,]$FDR_q_value)
+        }
+        dot.plt <- ggplot2::ggplot(bar.data,
+                                   ggplot2::aes(x = j, y = reorder(Gene_set,NES), color = NES,
+                                                size = minusLogFDR)) +
+          ggplot2::geom_point() + scale_color_gradient2(low="blue",mid="grey",high="red")+
+          scale_size_continuous(breaks=c(2,3,4), range=c(3,5))+
+          geom_point(data = bar.data, col = "black", stroke = 1.5, shape = 21) +
+          theme_classic() + ggplot2::labs(y = "Hallmark Pathways",
+                                          color = "NES", size = "-log(FDR)") + 
+          theme(axis.title.x=element_blank(), axis.title.y=element_blank()) +
+          ggtitle(paste(n.sig,"/", n.total, "Hallmark\npathways enriched"))
+        ggsave(paste0(j,"AUC_gseaDot_WithSortedProteomicsDIA_",i,"_top",n,"Sig.pdf"),
+               dot.plt, width=4, height=4)  
+      }
+    }
   }
 }
 
